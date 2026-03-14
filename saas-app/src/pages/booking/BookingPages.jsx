@@ -18,7 +18,7 @@ export function BookingLanding() {
         {/* Шапка бизнеса */}
         <Card className="p-6">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 bg-indigo-100 rounded-xl flex items-center justify-center text-3xl">
+            <div className="w-16 h-16 bg-violet-100 rounded-xl flex items-center justify-center text-3xl">
               {business.logo}
             </div>
             <div className="flex-1">
@@ -50,7 +50,7 @@ export function BookingLanding() {
                     <div className="text-xs text-gray-500">{s.duration} мин</div>
                   </div>
                 </div>
-                <div className="font-semibold text-indigo-600">{s.price.toLocaleString()} ₽</div>
+                <div className="font-semibold text-violet-600">{s.price.toLocaleString()} ₽</div>
               </Card>
             ))}
           </div>
@@ -98,7 +98,7 @@ export function ServiceSelection() {
             key={c}
             onClick={() => setActiveCategory(c)}
             className={`px-3 py-1.5 rounded-full text-sm transition-colors cursor-pointer ${
-              activeCategory === c ? "bg-indigo-600 text-white" : "bg-white text-gray-600 border border-gray-300 hover:border-indigo-300"
+              activeCategory === c ? "bg-violet-600 text-white" : "bg-white text-gray-600 border border-gray-300 hover:border-violet-300"
             }`}
           >
             {c}
@@ -111,7 +111,7 @@ export function ServiceSelection() {
         {filtered.map(s => (
           <Card
             key={s.id}
-            className="p-4 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all border border-transparent"
+            className="p-4 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all border border-transparent"
             onClick={() => navigate("/book/staff")}
           >
             <div className="flex items-center justify-between">
@@ -123,7 +123,7 @@ export function ServiceSelection() {
                 </div>
               </div>
               <div className="text-right shrink-0 ml-4">
-                <div className="font-bold text-indigo-600">{s.price.toLocaleString()} ₽</div>
+                <div className="font-bold text-violet-600">{s.price.toLocaleString()} ₽</div>
                 <div className="text-xs text-gray-400">{s.duration} мин</div>
               </div>
             </div>
@@ -146,7 +146,7 @@ export function StaffSelection() {
         {staff.map(s => (
           <Card
             key={s.id}
-            className="p-4 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all border border-transparent"
+            className="p-4 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all border border-transparent"
             onClick={() => navigate("/book/calendar")}
           >
             <div className="flex items-center gap-4">
@@ -197,11 +197,11 @@ export function DateTimeSelection() {
       <h2 className="text-xl font-bold text-gray-900 mb-4">Выберите дату и время</h2>
 
       {/* Выбранная услуга */}
-      <Card className="p-3 mb-4 flex items-center gap-3 bg-indigo-50 border-indigo-100">
-        <div className="w-3 h-3 bg-indigo-600 rounded-full" />
+      <Card className="p-3 mb-4 flex items-center gap-3 bg-violet-50 border-violet-100">
+        <div className="w-3 h-3 bg-violet-600 rounded-full" />
         <div className="text-sm">
-          <span className="font-medium text-indigo-900">Стрижка</span>
-          <span className="text-indigo-600 ml-2">30 мин · 1 200 ₽</span>
+          <span className="font-medium text-violet-900">Стрижка</span>
+          <span className="text-violet-600 ml-2">30 мин · 1 200 ₽</span>
         </div>
       </Card>
 
@@ -214,8 +214,8 @@ export function DateTimeSelection() {
             onClick={() => { setSelectedDate(d.num); setSelectedTime(null); }}
             className={`flex flex-col items-center px-3 py-2 rounded-xl border text-sm min-w-[52px] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               selectedDate === d.num
-                ? "bg-indigo-600 text-white border-indigo-600"
-                : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"
+                ? "bg-violet-600 text-white border-violet-600"
+                : "bg-white text-gray-700 border-gray-200 hover:border-violet-300"
             }`}
           >
             <span className="text-xs opacity-70">{d.day}</span>
@@ -236,10 +236,10 @@ export function DateTimeSelection() {
               onClick={() => setSelectedTime(slot)}
               className={`py-2 rounded-lg text-sm border transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
                 selectedTime === slot
-                  ? "bg-indigo-600 text-white border-indigo-600 font-medium"
+                  ? "bg-violet-600 text-white border-violet-600 font-medium"
                   : isBusy
                   ? "bg-gray-100 text-gray-300 border-gray-100"
-                  : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"
+                  : "bg-white text-gray-700 border-gray-200 hover:border-violet-300"
               }`}
             >
               {slot}
@@ -280,7 +280,7 @@ export function ClientDetails() {
             value={form.name}
             onChange={update("name")}
             placeholder="Ваше имя"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
         <div>
@@ -290,7 +290,7 @@ export function ClientDetails() {
             value={form.phone}
             onChange={update("phone")}
             placeholder="+7 (999) 000-00-00"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
         <div>
@@ -300,7 +300,7 @@ export function ClientDetails() {
             value={form.email}
             onChange={update("email")}
             placeholder="email@example.com"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
         <div>
@@ -310,7 +310,7 @@ export function ClientDetails() {
             onChange={update("notes")}
             placeholder="Пожелания к мастеру..."
             rows={3}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
           />
         </div>
       </Card>
@@ -352,7 +352,7 @@ export function BookingConfirm() {
         </div>
         <div>
           <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Итого</div>
-          <div className="text-2xl font-bold text-indigo-600">1 200 ₽</div>
+          <div className="text-2xl font-bold text-violet-600">1 200 ₽</div>
         </div>
       </Card>
 
@@ -399,7 +399,7 @@ export function BookingSuccess() {
             </div>
             <div className="flex justify-between border-t border-gray-100 pt-2 mt-2">
               <span className="text-gray-500">Сумма</span>
-              <span className="font-bold text-indigo-600">1 200 ₽</span>
+              <span className="font-bold text-violet-600">1 200 ₽</span>
             </div>
           </div>
         </Card>

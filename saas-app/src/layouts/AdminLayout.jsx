@@ -23,7 +23,7 @@ export default function AdminLayout({ children }) {
           <div className="flex items-center gap-2">
             <span className="text-2xl">🛡️</span>
             <div>
-              <div className="font-bold text-white text-sm">SaaS Admin</div>
+              <div className="font-bold text-white text-sm">Администратор</div>
               <div className="text-xs text-gray-400">Платформа</div>
             </div>
           </div>
@@ -40,7 +40,7 @@ export default function AdminLayout({ children }) {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                       isActive
-                        ? "bg-indigo-600 text-white font-medium"
+                        ? "bg-violet-600 text-white font-medium"
                         : "text-gray-300 hover:bg-gray-700 hover:text-white"
                     }`
                   }
@@ -69,7 +69,7 @@ export default function AdminLayout({ children }) {
         {/* Шапка */}
         <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between shrink-0">
           <div className="text-sm text-gray-400">Административная панель</div>
-          <div className="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">S</div>
+          <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">А</div>
         </header>
 
         {/* Контент */}

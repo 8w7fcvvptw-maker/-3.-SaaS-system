@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "../../context/ThemeContext";
 import {
   Button, Card, KpiCard, Badge, StatusBadge, Avatar, StarRating, PageHeader, EmptyState
 } from "../../components/ui";
@@ -25,75 +26,37 @@ export function Dashboard() {
 
       {/* KPI карточки */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Записей сегодня" value={todayApps.length} icon="📋" trend="↑ +2 к вчера" color="indigo" />
+        <KpiCard label="Записей сегодня" value={todayApps.length} icon="📋" trend="↑ +2 к вчера" color="violet" />
         <KpiCard label="Выручка сегодня" value={`${revenue.toLocaleString()} ₽`} icon="💰" trend="↑ +12%" color="green" />
         <KpiCard label="Новых клиентов" value="2" icon="👤" trend="За сегодня" color="yellow" />
         <KpiCard label="Отменено" value="1" icon="❌" trend="Из 5 записей" color="red" />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        {/* Расписание на сегодня */}
-        <div className="col-span-2">
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Расписание на сегодня</h3>
-              <Button size="sm" variant="ghost" onClick={() => navigate("/calendar")}>Открыть календарь →</Button>
-            </div>
-            <div className="space-y-2">
-              {todayApps.map(a => (
-                <div
-                  key={a.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer"
-                  onClick={() => navigate(`/appointments/${a.id}`)}
-                >
-                  <div className="text-sm font-mono font-semibold text-gray-600 w-12 shrink-0">{a.time}</div>
-                  <Avatar initials={a.clientName.split(" ").map(w => w[0]).join("")} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm text-gray-900 truncate">{a.clientName}</div>
-                    <div className="text-xs text-gray-500">{a.service} · {a.staffName.split(" ")[0]}</div>
-                  </div>
-                  <StatusBadge status={a.status} />
-                  <div className="text-sm font-semibold text-gray-700 shrink-0">{a.price.toLocaleString()} ₽</div>
-                </div>
-              ))}
-            </div>
-          </Card>
+      {/* Расписание на сегодня — во всю ширину, без боковой аналитики */}
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900 dark:text-white">Расписание на сегодня</h3>
+          <Button size="sm" variant="ghost" onClick={() => navigate("/calendar")}>Открыть календарь →</Button>
         </div>
-
-        {/* Мини-аналитика */}
-        <div className="space-y-4">
-          <Card className="p-5">
-            <h3 className="font-semibold text-gray-900 mb-3">Выручка по месяцам</h3>
-            <div className="space-y-2">
-              {revenueData.map(d => (
-                <div key={d.month} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-8">{d.month}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-2">
-                    <div
-                      className="bg-indigo-500 h-2 rounded-full"
-                      style={{ width: `${(d.revenue / 65000) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-gray-700 w-14 text-right">{(d.revenue / 1000).toFixed(0)}к ₽</span>
-                </div>
-              ))}
+        <div className="space-y-2">
+          {todayApps.map(a => (
+            <div
+              key={a.id}
+              className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700/50 cursor-pointer"
+              onClick={() => navigate(`/appointments/${a.id}`)}
+            >
+              <div className="text-sm font-mono font-semibold text-gray-500 dark:text-gray-400 w-12 shrink-0">{a.time}</div>
+              <Avatar initials={a.clientName.split(" ").map(w => w[0]).join("")} size="sm" />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm text-gray-900 dark:text-white truncate">{a.clientName}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{a.service} · {a.staffName.split(" ")[0]}</div>
+              </div>
+              <StatusBadge status={a.status} />
+              <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">{a.price.toLocaleString()} ₽</div>
             </div>
-          </Card>
-
-          <Card className="p-5">
-            <h3 className="font-semibold text-gray-900 mb-3">Топ услуги</h3>
-            <div className="space-y-2">
-              {services.filter(s => s.active).slice(0, 3).map((s, i) => (
-                <div key={s.id} className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-400">{i + 1}.</span>
-                  <span className="flex-1 text-gray-700">{s.name}</span>
-                  <span className="font-medium text-indigo-600">{s.price.toLocaleString()} ₽</span>
-                </div>
-              ))}
-            </div>
-          </Card>
+          ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -131,7 +94,7 @@ export function CalendarPage() {
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`px-3 py-1.5 text-sm transition-colors cursor-pointer ${view === v ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+                className={`px-3 py-1.5 text-sm transition-colors cursor-pointer ${view === v ? "bg-violet-600 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-700"}`}
               >
                 {v === "day" ? "День" : "Неделя"}
               </button>
@@ -145,7 +108,7 @@ export function CalendarPage() {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setSelectedStaff("all")}
-          className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${selectedStaff === "all" ? "bg-indigo-600 text-white border-indigo-600" : "text-gray-600 border-gray-200 hover:border-indigo-300"}`}
+          className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${selectedStaff === "all" ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600 hover:border-violet-300"}`}
         >
           Все мастера
         </button>
@@ -153,9 +116,9 @@ export function CalendarPage() {
           <button
             key={s.id}
             onClick={() => setSelectedStaff(String(s.id))}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${selectedStaff === String(s.id) ? "bg-indigo-600 text-white border-indigo-600" : "text-gray-600 border-gray-200 hover:border-indigo-300"}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${selectedStaff === String(s.id) ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600 hover:border-violet-300"}`}
           >
-            <span className="w-5 h-5 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-xs">{s.avatar[0]}</span>
+            <span className="w-5 h-5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded-full flex items-center justify-center text-xs">{s.avatar[0]}</span>
             {s.name.split(" ")[0]}
           </button>
         ))}
@@ -165,7 +128,7 @@ export function CalendarPage() {
       {view === "week" && (
         <div className="grid grid-cols-7 gap-1 mb-3">
           {["Пн 10", "Вт 11", "Ср 12", "Чт 13", "Пт 14", "Сб 15", "Вс 16"].map((d, i) => (
-            <div key={i} className={`text-center py-2 rounded-lg text-sm cursor-pointer ${i === 4 ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>
+            <div key={i} className={`text-center py-2 rounded-lg text-sm cursor-pointer ${i === 4 ? "bg-violet-600 text-white" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-700"}`}>
               {d}
             </div>
           ))}
@@ -194,11 +157,11 @@ export function CalendarPage() {
             {/* Блоки записей */}
             {displayApps.map(a => {
               const colors = {
-                confirmed: "bg-indigo-100 border-indigo-400 text-indigo-800",
-                pending:   "bg-yellow-100 border-yellow-400 text-yellow-800",
+                confirmed: "bg-violet-100 border-violet-400 text-violet-900",
+                pending:   "bg-yellow-100 border-yellow-400 text-yellow-900",
                 cancelled: "bg-red-100 border-red-300 text-red-700 opacity-60",
-                completed: "bg-gray-100 border-gray-300 text-gray-600",
-                "no-show": "bg-orange-100 border-orange-300 text-orange-700",
+                completed: "bg-teal-100 border-teal-400 text-teal-900",
+                "no-show": "bg-orange-100 border-orange-300 text-orange-800",
               };
               return (
                 <div
@@ -241,7 +204,7 @@ export function AppointmentsList() {
           <button
             key={s}
             onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filter === s ? "bg-indigo-600 text-white border-indigo-600" : "text-gray-600 border-gray-200"}`}
+            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filter === s ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600"}`}
           >
             {s === "all" ? "Все" : s === "confirmed" ? "Подтверждено" : s === "pending" ? "Ожидает" : s === "completed" ? "Завершено" : "Отменено"}
           </button>
@@ -251,39 +214,39 @@ export function AppointmentsList() {
       <Card>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100">
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Дата / Время</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Клиент</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Услуга</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Мастер</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Статус</th>
-              <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Сумма</th>
+            <tr className="border-b border-gray-100 dark:border-zinc-700">
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Дата / Время</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Клиент</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Услуга</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Мастер</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Статус</th>
+              <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Сумма</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map(a => (
               <tr
                 key={a.id}
-                className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                className="border-b border-gray-50 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700/50 cursor-pointer"
                 onClick={() => navigate(`/appointments/${a.id}`)}
               >
                 <td className="px-4 py-3">
-                  <div className="font-medium text-gray-900">{a.date.slice(5).replace("-", ".")}</div>
-                  <div className="text-gray-400">{a.time}</div>
+                  <div className="font-medium text-gray-900 dark:text-white">{a.date.slice(5).replace("-", ".")}</div>
+                  <div className="text-gray-400 dark:text-gray-500">{a.time}</div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Avatar initials={a.clientName.split(" ").map(w => w[0]).join("")} size="sm" />
                     <div>
-                      <div className="font-medium text-gray-900">{a.clientName}</div>
-                      <div className="text-gray-400 text-xs">{a.clientPhone}</div>
+                      <div className="font-medium text-gray-900 dark:text-white">{a.clientName}</div>
+                      <div className="text-gray-400 dark:text-gray-500 text-xs">{a.clientPhone}</div>
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-700">{a.service}</td>
-                <td className="px-4 py-3 text-gray-700">{a.staffName.split(" ")[0]}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{a.service}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{a.staffName.split(" ")[0]}</td>
                 <td className="px-4 py-3"><StatusBadge status={a.status} /></td>
-                <td className="px-4 py-3 text-right font-semibold text-gray-900">{a.price.toLocaleString()} ₽</td>
+                <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">{a.price.toLocaleString()} ₽</td>
               </tr>
             ))}
           </tbody>
@@ -335,7 +298,7 @@ export function AppointmentDetail() {
               defaultValue={a.notes || ""}
               placeholder="Добавьте заметку..."
               rows={3}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
             />
           </Card>
         </div>
@@ -362,7 +325,7 @@ export function AppointmentDetail() {
               {["confirmed", "completed", "cancelled", "no-show"].map(s => (
                 <button
                   key={s}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer ${a.status === s ? "border-indigo-400 bg-indigo-50 text-indigo-700" : "border-gray-200 hover:border-gray-300"}`}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer ${a.status === s ? "border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300" : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"}`}
                 >
                   <StatusBadge status={s} />
                 </button>
@@ -400,7 +363,7 @@ export function ClientsPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Поиск по имени или телефону..."
-          className="w-full max-w-sm border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full max-w-sm border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
         />
       </div>
 
@@ -427,7 +390,7 @@ export function ClientsPage() {
                     <Avatar initials={c.name.split(" ").map(w => w[0]).join("")} size="sm" />
                     <div>
                       <div className="font-medium text-gray-900">{c.name}</div>
-                      {c.tags.map(t => <Badge key={t} color={t === "VIP" ? "purple" : t === "Постоянный" ? "indigo" : "red"}>{t}</Badge>)}
+                      {c.tags.map(t => <Badge key={t} color={t === "VIP" ? "purple" : t === "Постоянный" ? "teal" : "red"}>{t}</Badge>)}
                     </div>
                   </div>
                 </td>
@@ -437,7 +400,7 @@ export function ClientsPage() {
                 </td>
                 <td className="px-4 py-3 text-right font-medium text-gray-900">{c.totalVisits}</td>
                 <td className="px-4 py-3 text-gray-500">{c.lastVisit.slice(5).replace("-", ".")}</td>
-                <td className="px-4 py-3 text-right font-semibold text-indigo-600">{c.totalSpent.toLocaleString()} ₽</td>
+                <td className="px-4 py-3 text-right font-semibold text-violet-600 dark:text-violet-400">{c.totalSpent.toLocaleString()} ₽</td>
               </tr>
             ))}
           </tbody>
@@ -458,7 +421,7 @@ export function ClientProfile() {
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => navigate("/clients")} className="text-gray-400 hover:text-gray-600 cursor-pointer">← Назад</button>
         <h1 className="text-xl font-bold text-gray-900">{c.name}</h1>
-        {c.tags.map(t => <Badge key={t} color={t === "VIP" ? "purple" : "indigo"}>{t}</Badge>)}
+        {c.tags.map(t => <Badge key={t} color={t === "VIP" ? "purple" : "teal"}>{t}</Badge>)}
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -502,7 +465,7 @@ export function ClientProfile() {
           {/* Заметки */}
           <Card className="p-5">
             <h3 className="font-semibold text-gray-900 mb-2">Заметки</h3>
-            <textarea defaultValue={c.notes} rows={3} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <textarea defaultValue={c.notes} rows={3} className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-500" />
           </Card>
         </div>
 
@@ -549,7 +512,7 @@ export function ServicesPage() {
 
       <div className="flex gap-2 mb-4">
         {categories.map(c => (
-          <button key={c} onClick={() => setActiveCategory(c)} className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${activeCategory === c ? "bg-indigo-600 text-white border-indigo-600" : "text-gray-600 border-gray-200"}`}>
+          <button key={c} onClick={() => setActiveCategory(c)} className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${activeCategory === c ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600"}`}>
             {c}
           </button>
         ))}
@@ -568,7 +531,7 @@ export function ServicesPage() {
             <p className="text-sm text-gray-500 mb-3">{s.description}</p>
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-500">⏱ {s.duration} мин · {s.category}</span>
-              <span className="font-bold text-indigo-600">{s.price.toLocaleString()} ₽</span>
+              <span className="font-bold text-violet-600 dark:text-violet-400">{s.price.toLocaleString()} ₽</span>
             </div>
           </Card>
         ))}
@@ -596,7 +559,7 @@ export function ServiceEditor() {
           {[["Название", "name", "text"], ["Описание", "description", "text"], ["Длительность (мин)", "duration", "number"], ["Цена (₽)", "price", "number"]].map(([label, field, type]) => (
             <div key={field}>
               <label className="text-sm font-medium text-gray-700 block mb-1">{label}</label>
-              <input type={type} value={form[field]} onChange={u(field)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <input type={type} value={form[field]} onChange={u(field)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
             </div>
           ))}
           <div>
@@ -644,7 +607,7 @@ export function StaffPage() {
             <div className="mt-3 flex flex-wrap gap-1">
               {s.services.map(sid => {
                 const sv = services.find(sv => sv.id === sid);
-                return sv ? <Badge key={sid} color="indigo">{sv.name}</Badge> : null;
+                return sv ? <Badge key={sid} color="teal">{sv.name}</Badge> : null;
               })}
             </div>
           </Card>
@@ -685,7 +648,7 @@ export function StaffProfile() {
             <div className="flex flex-wrap gap-1">
               {s.services.map(sid => {
                 const sv = services.find(sv => sv.id === sid);
-                return sv ? <Badge key={sid} color="indigo">{sv.name}</Badge> : null;
+                return sv ? <Badge key={sid} color="teal">{sv.name}</Badge> : null;
               })}
             </div>
           </Card>
@@ -696,7 +659,7 @@ export function StaffProfile() {
             <h3 className="font-semibold text-gray-900 mb-4">Статистика и записи</h3>
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <div className="text-2xl font-bold text-indigo-600">{staffApps.length}</div>
+                <div className="text-2xl font-bold text-violet-600 dark:text-violet-400">{staffApps.length}</div>
                 <div className="text-xs text-gray-500">Записей</div>
               </div>
               <div className="text-center p-3 bg-gray-50 rounded-lg">
@@ -751,7 +714,7 @@ export function MessagesPage() {
                     <div className="font-medium text-gray-900 text-sm">{t.name}</div>
                     <div className="text-xs text-gray-500">{t.trigger} · {t.channel}</div>
                   </div>
-                  <div className={`w-10 h-5 rounded-full transition-colors cursor-pointer relative ${t.active ? "bg-indigo-600" : "bg-gray-300"}`}>
+                  <div className={`w-10 h-5 rounded-full transition-colors cursor-pointer relative ${t.active ? "bg-violet-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${t.active ? "translate-x-5" : "translate-x-0.5"}`} />
                   </div>
                 </div>
@@ -793,10 +756,10 @@ export function AnalyticsPage() {
 
       {/* KPI */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Выручка за месяц" value="38 000 ₽" icon="💰" trend="↓ -31% к прошлому" color="indigo" />
+        <KpiCard label="Выручка за месяц" value="38 000 ₽" icon="💰" trend="↓ -31% к прошлому" color="violet" />
         <KpiCard label="Записей за месяц" value="41" icon="📋" trend="↓ -32% к прошлому" color="green" />
         <KpiCard label="Новых клиентов" value="8" icon="👤" color="yellow" />
-        <KpiCard label="Средний чек" value="927 ₽" icon="📊" trend="↑ +2%" color="indigo" />
+        <KpiCard label="Средний чек" value="927 ₽" icon="📊" trend="↑ +2%" color="teal" />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -806,9 +769,9 @@ export function AnalyticsPage() {
           <div className="flex items-end gap-3 h-40">
             {revenueData.map(d => (
               <div key={d.month} className="flex flex-col items-center gap-1 flex-1">
-                <div className="text-xs font-medium text-indigo-600">{(d.revenue / 1000).toFixed(0)}к</div>
+                <div className="text-xs font-medium text-violet-600 dark:text-violet-400">{(d.revenue / 1000).toFixed(0)}к</div>
                 <div
-                  className="w-full bg-indigo-500 rounded-t-md hover:bg-indigo-600 transition-colors"
+                  className="w-full bg-violet-500 rounded-t-md hover:bg-violet-600 transition-colors"
                   style={{ height: `${(d.revenue / maxRevenue) * 120}px` }}
                 />
                 <div className="text-xs text-gray-400">{d.month}</div>
@@ -830,7 +793,7 @@ export function AnalyticsPage() {
                     <span className="font-medium text-gray-900">{s.price.toLocaleString()} ₽</span>
                   </div>
                   <div className="h-1.5 bg-gray-100 rounded-full">
-                    <div className="h-1.5 rounded-full bg-indigo-400" style={{ width: `${100 - i * 15}%` }} />
+                    <div className="h-1.5 rounded-full bg-teal-400" style={{ width: `${100 - i * 15}%` }} />
                   </div>
                 </div>
               </div>
@@ -888,11 +851,13 @@ export function SettingsPage() {
   const [biz, setBiz] = useState({ ...business });
   const [notifications, setNotifications] = useState({ email: true, sms: true, reminderHours: 24 });
   const [booking, setBooking] = useState({ onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 });
+  const { theme, setTheme } = useTheme();
 
   const tabs = [
     { id: "profile",       label: "Профиль бизнеса" },
     { id: "booking",       label: "Настройки записи" },
     { id: "notifications", label: "Уведомления" },
+    { id: "appearance",    label: "Оформление" },
     { id: "billing",       label: "Биллинг" },
   ];
 
@@ -907,7 +872,7 @@ export function SettingsPage() {
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
-              activeTab === t.id ? "border-indigo-600 text-indigo-600" : "border-transparent text-gray-500 hover:text-gray-700"
+              activeTab === t.id ? "border-violet-600 text-violet-600 dark:text-violet-400 dark:border-violet-400" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             }`}
           >
             {t.label}
@@ -925,7 +890,7 @@ export function SettingsPage() {
                 <input
                   value={biz[field]}
                   onChange={e => setBiz(p => ({ ...p, [field]: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
               </div>
             ))}
@@ -935,7 +900,7 @@ export function SettingsPage() {
                 value={biz.description}
                 onChange={e => setBiz(p => ({ ...p, description: e.target.value }))}
                 rows={3}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
               />
             </div>
             <Button>Сохранить изменения</Button>
@@ -954,7 +919,7 @@ export function SettingsPage() {
               </div>
               <button
                 onClick={() => setBooking(p => ({ ...p, onlineBooking: !p.onlineBooking }))}
-                className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${booking.onlineBooking ? "bg-indigo-600" : "bg-gray-300"}`}
+                className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${booking.onlineBooking ? "bg-violet-600" : "bg-gray-300 dark:bg-zinc-600"}`}
               >
                 <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${booking.onlineBooking ? "translate-x-6" : "translate-x-0.5"}`} />
               </button>
@@ -962,12 +927,12 @@ export function SettingsPage() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Буфер между записями (мин)</label>
               <input type="number" value={booking.bufferMinutes} onChange={e => setBooking(p => ({ ...p, bufferMinutes: +e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Политика отмены (часов до)</label>
               <input type="number" value={booking.cancellationHours} onChange={e => setBooking(p => ({ ...p, cancellationHours: +e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
             </div>
             <Button>Сохранить</Button>
           </div>
@@ -983,7 +948,7 @@ export function SettingsPage() {
                 <div className="font-medium text-gray-900">{label}</div>
                 <button
                   onClick={() => setNotifications(p => ({ ...p, [field]: !p[field] }))}
-                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${notifications[field] ? "bg-indigo-600" : "bg-gray-300"}`}
+                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${notifications[field] ? "bg-violet-600" : "bg-gray-300 dark:bg-zinc-600"}`}
                 >
                   <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${notifications[field] ? "translate-x-6" : "translate-x-0.5"}`} />
                 </button>
@@ -992,20 +957,64 @@ export function SettingsPage() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Напоминание за (часов)</label>
               <input type="number" value={notifications.reminderHours} onChange={e => setNotifications(p => ({ ...p, reminderHours: +e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
             </div>
             <Button>Сохранить</Button>
           </div>
         </Card>
       )}
 
+      {/* Оформление — выбор темы */}
+      {activeTab === "appearance" && (
+        <Card className="p-6 max-w-lg">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Тема интерфейса</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Светлая тема */}
+            <button
+              onClick={() => setTheme("light")}
+              className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                theme === "light"
+                  ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20"
+                  : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"
+              }`}
+            >
+              <div className="text-2xl mb-2">☀️</div>
+              <div className="font-medium text-gray-900 dark:text-white text-sm">Светлая</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Белый фон, тёмный текст</div>
+              {theme === "light" && (
+                <div className="mt-2 text-xs text-violet-600 dark:text-violet-400 font-medium">✓ Активна</div>
+              )}
+            </button>
+            {/* Тёмная тема */}
+            <button
+              onClick={() => setTheme("dark")}
+              className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                theme === "dark"
+                  ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20"
+                  : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"
+              }`}
+            >
+              <div className="text-2xl mb-2">🌙</div>
+              <div className="font-medium text-gray-900 dark:text-white text-sm">Тёмная</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Тёмный фон, светлый текст</div>
+              {theme === "dark" && (
+                <div className="mt-2 text-xs text-violet-600 dark:text-violet-400 font-medium">✓ Активна</div>
+              )}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">
+            Выбор темы сохраняется в браузере автоматически
+          </p>
+        </Card>
+      )}
+
       {/* Биллинг */}
       {activeTab === "billing" && (
         <Card className="p-6 max-w-lg">
-          <div className="flex items-center justify-between mb-4 p-4 bg-indigo-50 rounded-xl">
+          <div className="flex items-center justify-between mb-4 p-4 bg-violet-50 dark:bg-violet-900/20 rounded-xl">
             <div>
-              <div className="font-bold text-indigo-900">Pro план</div>
-              <div className="text-sm text-indigo-600">Активен до 14 апреля 2026</div>
+              <div className="font-bold text-violet-900 dark:text-violet-200">Pro план</div>
+              <div className="text-sm text-violet-600 dark:text-violet-400">Активен до 14 апреля 2026</div>
             </div>
             <Badge color="indigo">Активен</Badge>
           </div>

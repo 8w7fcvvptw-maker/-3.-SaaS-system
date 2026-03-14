@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Включаем dark mode через класс на <html> */
+@variant dark (&:where(.dark, .dark *));
+
 * {
   box-sizing: border-box;
 }
@@ -7,7 +10,6 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
-  background: #f8fafc;
 }
 
 #root {

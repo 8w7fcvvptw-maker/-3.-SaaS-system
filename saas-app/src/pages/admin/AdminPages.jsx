@@ -9,7 +9,7 @@ import { adminBusinesses, revenueData } from "../../data/mockData";
 
 // Хелпер: цвет для плана
 function PlanBadge({ plan }) {
-  const colors = { Free: "gray", Pro: "indigo", Enterprise: "purple" };
+  const colors = { Free: "gray", Pro: "teal", Enterprise: "purple" };
   return <Badge color={colors[plan] || "gray"}>{plan}</Badge>;
 }
 
@@ -49,7 +49,7 @@ export function AdminDashboard() {
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
           <div className="text-gray-400 text-sm mb-2">Платных планов</div>
           <div className="text-2xl font-bold text-white">{proCount + adminBusinesses.filter(b => b.plan === "Enterprise").length}</div>
-          <div className="text-xs text-indigo-400 mt-1">Pro + Enterprise</div>
+          <div className="text-xs text-teal-400 mt-1">Pro + Enterprise</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
           <div className="text-gray-400 text-sm mb-2">MRR</div>
@@ -65,9 +65,9 @@ export function AdminDashboard() {
           <div className="flex items-end gap-3 h-36">
             {revenueData.map(d => (
               <div key={d.month} className="flex flex-col items-center gap-1 flex-1">
-                <div className="text-xs font-medium text-indigo-400">{(d.revenue / 1000).toFixed(0)}к</div>
+                <div className="text-xs font-medium text-violet-400">{(d.revenue / 1000).toFixed(0)}к</div>
                 <div
-                  className="w-full bg-indigo-500 rounded-t-md hover:bg-indigo-400 transition-colors"
+                  className="w-full bg-violet-500 rounded-t-md hover:bg-violet-400 transition-colors"
                   style={{ height: `${(d.revenue / maxRevenue) * 100}px` }}
                 />
                 <div className="text-xs text-gray-500">{d.month}</div>
@@ -120,13 +120,13 @@ export function AdminBusinesses() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Поиск..."
-          className="border border-gray-700 bg-gray-800 text-white placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-60"
+          className="border border-gray-700 bg-gray-800 text-white placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 w-60"
         />
         {["all", "Free", "Pro", "Enterprise"].map(p => (
           <button
             key={p}
             onClick={() => setFilterPlan(p)}
-            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filterPlan === p ? "bg-indigo-600 text-white border-indigo-600" : "text-gray-400 border-gray-600 hover:border-gray-400"}`}
+            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filterPlan === p ? "bg-violet-600 text-white border-violet-600" : "text-gray-400 border-gray-600 hover:border-gray-400"}`}
           >
             {p === "all" ? "Все" : p}
           </button>
@@ -186,7 +186,7 @@ export function AdminPlans() {
       name: "Pro",
       price: "2 990 ₽",
       period: "/мес",
-      color: "border-indigo-500",
+      color: "border-violet-500",
       badge: "indigo",
       popular: true,
       features: ["До 10 сотрудников", "Неограниченные записи", "SMS + Email", "Аналитика", "Кастомные шаблоны"],
@@ -213,7 +213,7 @@ export function AdminPlans() {
         {plans.map(p => (
           <div key={p.name} className={`bg-gray-800 border-2 ${p.color} rounded-xl p-6 relative`}>
             {p.popular && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-violet-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
                 Популярный
               </div>
             )}

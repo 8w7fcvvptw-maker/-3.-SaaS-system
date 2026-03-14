@@ -18,16 +18,16 @@ export default function BookingLayout({ children, currentStep = -1 }) {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 to-rose-50">
       {/* Шапка */}
       <header className="bg-white shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate("/book/barbershop")}
-            className="flex items-center gap-2 text-gray-700 hover:text-indigo-600 transition-colors cursor-pointer"
+            className="flex items-center gap-2 text-gray-700 hover:text-violet-600 transition-colors cursor-pointer"
           >
             <span className="text-xl">✂️</span>
-            <span className="font-semibold">Barbershop Premium</span>
+            <span className="font-semibold">Барбершоп Премиум</span>
           </button>
           <button
             onClick={() => navigate("/dashboard")}
@@ -47,19 +47,19 @@ export default function BookingLayout({ children, currentStep = -1 }) {
                 <div key={i} className="flex items-center flex-1">
                   <div className="flex flex-col items-center gap-1 flex-1">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                      i < currentStep  ? "bg-indigo-600 text-white" :
-                      i === currentStep ? "bg-indigo-600 text-white ring-2 ring-indigo-200" :
+                      i < currentStep  ? "bg-violet-600 text-white" :
+                      i === currentStep ? "bg-violet-600 text-white ring-2 ring-violet-200" :
                       "bg-gray-200 text-gray-400"
                     }`}>
                       {i < currentStep ? "✓" : i + 1}
                     </div>
-                    <span className={`text-xs hidden sm:block ${i === currentStep ? "text-indigo-600 font-medium" : "text-gray-400"}`}>
+                    <span className={`text-xs hidden sm:block ${i === currentStep ? "text-violet-600 font-medium" : "text-gray-400"}`}>
                       {step.label}
                     </span>
                   </div>
                   {/* Линия между шагами */}
                   {i < steps.length - 1 && (
-                    <div className={`h-0.5 flex-1 mx-1 mb-4 rounded ${i < currentStep ? "bg-indigo-600" : "bg-gray-200"}`} />
+                    <div className={`h-0.5 flex-1 mx-1 mb-4 rounded ${i < currentStep ? "bg-violet-600" : "bg-gray-200"}`} />
                   )}
                 </div>
               ))}
