@@ -69,7 +69,7 @@ export default function BookingLayout({ children, currentStep = -1 }) {
       )}
 
       {/* Основной контент */}
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="max-w-2xl mx-auto px-4 py-4 md:py-8">
         {children}
       </main>
     </div>

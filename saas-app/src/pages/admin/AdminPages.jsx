@@ -35,7 +35,7 @@ export function AdminDashboard() {
       <PageHeader title="SaaS Дашборд" subtitle="Общая статистика платформы" />
 
       {/* KPI */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
           <div className="text-gray-400 text-sm mb-2">Всего бизнесов</div>
           <div className="text-2xl font-bold text-white">{adminBusinesses.length}</div>
@@ -58,7 +58,7 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* График */}
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
           <h3 className="font-semibold text-white mb-4">Выручка платформы</h3>
@@ -209,7 +209,7 @@ export function AdminPlans() {
     <div>
       <PageHeader title="Тарифные планы" subtitle="Управление тарифами платформы" />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {plans.map(p => (
           <div key={p.name} className={`bg-gray-800 border-2 ${p.color} rounded-xl p-6 relative`}>
             {p.popular && (

@@ -1,14 +1,14 @@
 // ============================================
 // LAYOUT ADMIN SAAS ПАНЕЛИ
-// Управление всеми бизнесами на платформе
+// Десктоп: боковая панель | Мобильный: нижняя навигация
 // ============================================
 
 import { NavLink, useNavigate } from "react-router-dom";
 
 const adminNav = [
-  { to: "/admin",              icon: "📊", label: "Дашборд" },
-  { to: "/admin/businesses",   icon: "🏢", label: "Бизнесы" },
-  { to: "/admin/plans",        icon: "💳", label: "Тарифы" },
+  { to: "/admin",            icon: "📊", label: "Дашборд", end: true },
+  { to: "/admin/businesses", icon: "🏢", label: "Бизнесы",  end: false },
+  { to: "/admin/plans",      icon: "💳", label: "Тарифы",   end: false },
 ];
 
 export default function AdminLayout({ children }) {
@@ -16,9 +16,9 @@ export default function AdminLayout({ children }) {
 
   return (
     <div className="flex h-screen bg-gray-900 overflow-hidden">
-      {/* Боковая панель (тёмная тема) */}
-      <aside className="w-56 bg-gray-800 flex flex-col shrink-0">
-        {/* Логотип */}
+
+      {/* Боковая панель — только десктоп */}
+      <aside className="hidden md:flex w-56 bg-gray-800 flex-col shrink-0">
         <div className="p-4 border-b border-gray-700">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🛡️</span>
@@ -29,14 +29,13 @@ export default function AdminLayout({ children }) {
           </div>
         </div>
 
-        {/* Навигация */}
         <nav className="flex-1 p-3">
           <ul className="space-y-0.5">
             {adminNav.map((item) => (
               <li key={item.to}>
                 <NavLink
                   to={item.to}
-                  end={item.to === "/admin"}
+                  end={item.end}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                       isActive
@@ -53,7 +52,6 @@ export default function AdminLayout({ children }) {
           </ul>
         </nav>
 
-        {/* Кнопка возврата */}
         <div className="p-3 border-t border-gray-700">
           <button
             onClick={() => navigate("/dashboard")}
@@ -66,17 +64,46 @@ export default function AdminLayout({ children }) {
 
       {/* Основная зона */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Шапка */}
-        <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between shrink-0">
-          <div className="text-sm text-gray-400">Административная панель</div>
+        <header className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="md:hidden text-xl">🛡️</span>
+            <div className="text-sm text-gray-400">Административная панель</div>
+          </div>
           <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">А</div>
         </header>
 
-        {/* Контент */}
-        <main className="flex-1 overflow-y-auto p-6 bg-gray-900">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6 bg-gray-900">
           {children}
         </main>
       </div>
+
+      {/* Нижняя навигация — только мобильный */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50">
+        <div className="flex">
+          {adminNav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                `flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition-colors ${
+                  isActive ? "text-violet-400" : "text-gray-500"
+                }`
+              }
+            >
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="leading-none">{item.label}</span>
+            </NavLink>
+          ))}
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs text-gray-500 cursor-pointer"
+          >
+            <span className="text-lg leading-none">←</span>
+            <span className="leading-none">Назад</span>
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }

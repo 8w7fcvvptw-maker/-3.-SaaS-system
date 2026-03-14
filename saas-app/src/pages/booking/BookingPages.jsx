@@ -59,7 +59,7 @@ export function BookingLanding() {
         {/* Мастера */}
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Наши мастера</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {staff.map(s => (
               <Card key={s.id} className="p-4 text-center">
                 <Avatar initials={s.avatar} size="lg" className="mx-auto mb-2" />

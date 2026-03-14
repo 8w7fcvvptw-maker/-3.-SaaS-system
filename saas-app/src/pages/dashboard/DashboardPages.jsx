@@ -24,8 +24,8 @@ export function Dashboard() {
     <div>
       <PageHeader title="Дашборд" subtitle="Пятница, 14 марта 2026" />
 
-      {/* KPI карточки */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      {/* KPI карточки — 2 на мобильном, 4 на десктопе */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
         <KpiCard label="Записей сегодня" value={todayApps.length} icon="📋" trend="↑ +2 к вчера" color="violet" />
         <KpiCard label="Выручка сегодня" value={`${revenue.toLocaleString()} ₽`} icon="💰" trend="↑ +12%" color="green" />
         <KpiCard label="Новых клиентов" value="2" icon="👤" trend="За сегодня" color="yellow" />
@@ -85,11 +85,10 @@ export function CalendarPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <PageHeader title="Календарь" subtitle="14 марта 2026 — Пятница" />
-        <div className="flex items-center gap-2">
-          {/* Переключатель вида */}
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <PageHeader title="Календарь" subtitle="14 марта 2026" />
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex rounded-lg border border-gray-200 dark:border-zinc-600 overflow-hidden">
             {["day", "week"].map(v => (
               <button
                 key={v}
@@ -104,8 +103,8 @@ export function CalendarPage() {
         </div>
       </div>
 
-      {/* Фильтр по мастерам */}
-      <div className="flex gap-2 mb-4">
+      {/* Фильтр по мастерам — горизонтальный скролл на мобильном */}
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
         <button
           onClick={() => setSelectedStaff("all")}
           className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${selectedStaff === "all" ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600 hover:border-violet-300"}`}
@@ -211,7 +210,32 @@ export function AppointmentsList() {
         ))}
       </div>
 
-      <Card>
+      {/* Мобильный вид: карточки */}
+      <div className="md:hidden space-y-2">
+        {filtered.map(a => (
+          <Card
+            key={a.id}
+            className="p-4 cursor-pointer active:opacity-70"
+            onClick={() => navigate(`/appointments/${a.id}`)}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <Avatar initials={a.clientName.split(" ").map(w => w[0]).join("")} size="sm" />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-gray-900 dark:text-white truncate">{a.clientName}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{a.service} · {a.staffName.split(" ")[0]}</div>
+              </div>
+              <StatusBadge status={a.status} />
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500 dark:text-gray-400">{a.date.slice(5).replace("-", ".")} в {a.time}</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{a.price.toLocaleString()} ₽</span>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Десктоп вид: таблица */}
+      <Card className="hidden md:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 dark:border-zinc-700">
@@ -269,8 +293,8 @@ export function AppointmentDetail() {
         <StatusBadge status={a.status} />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2 space-y-4">
           {/* Информация о записи */}
           <Card className="p-5">
             <h3 className="font-semibold text-gray-900 mb-4">Детали записи</h3>
@@ -367,39 +391,59 @@ export function ClientsPage() {
         />
       </div>
 
-      <Card>
+      {/* Мобильный вид: карточки */}
+      <div className="md:hidden space-y-2">
+        {filtered.map(c => (
+          <Card key={c.id} className="p-4 cursor-pointer active:opacity-70" onClick={() => navigate(`/clients/${c.id}`)}>
+            <div className="flex items-center gap-3">
+              <Avatar initials={c.name.split(" ").map(w => w[0]).join("")} size="sm" />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-gray-900 dark:text-white truncate">{c.name}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{c.phone}</div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="font-semibold text-violet-600 dark:text-violet-400 text-sm">{c.totalSpent.toLocaleString()} ₽</div>
+                <div className="text-xs text-gray-400">{c.totalVisits} визитов</div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Десктоп вид: таблица */}
+      <Card className="hidden md:block">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100">
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Клиент</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Контакты</th>
-              <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Визиты</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Последний</th>
-              <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Выручка</th>
+            <tr className="border-b border-gray-100 dark:border-zinc-700">
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Клиент</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Контакты</th>
+              <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Визиты</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Последний</th>
+              <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Выручка</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map(c => (
               <tr
                 key={c.id}
-                className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                className="border-b border-gray-50 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700/50 cursor-pointer"
                 onClick={() => navigate(`/clients/${c.id}`)}
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Avatar initials={c.name.split(" ").map(w => w[0]).join("")} size="sm" />
                     <div>
-                      <div className="font-medium text-gray-900">{c.name}</div>
+                      <div className="font-medium text-gray-900 dark:text-white">{c.name}</div>
                       {c.tags.map(t => <Badge key={t} color={t === "VIP" ? "purple" : t === "Постоянный" ? "teal" : "red"}>{t}</Badge>)}
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="text-gray-700">{c.phone}</div>
+                  <div className="text-gray-700 dark:text-gray-300">{c.phone}</div>
                   <div className="text-gray-400 text-xs">{c.email}</div>
                 </td>
-                <td className="px-4 py-3 text-right font-medium text-gray-900">{c.totalVisits}</td>
-                <td className="px-4 py-3 text-gray-500">{c.lastVisit.slice(5).replace("-", ".")}</td>
+                <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">{c.totalVisits}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{c.lastVisit.slice(5).replace("-", ".")}</td>
                 <td className="px-4 py-3 text-right font-semibold text-violet-600 dark:text-violet-400">{c.totalSpent.toLocaleString()} ₽</td>
               </tr>
             ))}
@@ -424,7 +468,7 @@ export function ClientProfile() {
         {c.tags.map(t => <Badge key={t} color={t === "VIP" ? "purple" : "teal"}>{t}</Badge>)}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-4">
           {/* Контакты */}
           <Card className="p-5">
@@ -518,9 +562,9 @@ export function ServicesPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {filtered.map(s => (
-          <Card key={s.id} className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/services/${s.id}`)}>
+          <Card key={s.id} className="p-4 cursor-pointer hover:shadow-md transition-shadow active:opacity-70" onClick={() => navigate(`/services/${s.id}`)}>
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full" style={{ backgroundColor: s.color }} />
@@ -591,9 +635,9 @@ export function StaffPage() {
         action={<Button onClick={() => {}}>+ Добавить сотрудника</Button>}
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {staff.map(s => (
-          <Card key={s.id} className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/staff/${s.id}`)}>
+          <Card key={s.id} className="p-5 cursor-pointer hover:shadow-md transition-shadow active:opacity-70" onClick={() => navigate(`/staff/${s.id}`)}>
             <div className="flex items-center gap-3 mb-3">
               <Avatar initials={s.avatar} size="lg" />
               <div>
@@ -630,7 +674,7 @@ export function StaffProfile() {
         <h1 className="text-xl font-bold text-gray-900">{s.name}</h1>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-4">
           <Card className="p-5 text-center">
             <Avatar initials={s.avatar} size="lg" className="mx-auto mb-2" />
@@ -755,14 +799,14 @@ export function AnalyticsPage() {
       <PageHeader title="Аналитика" subtitle="Последние 6 месяцев" />
 
       {/* KPI */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
         <KpiCard label="Выручка за месяц" value="38 000 ₽" icon="💰" trend="↓ -31% к прошлому" color="violet" />
         <KpiCard label="Записей за месяц" value="41" icon="📋" trend="↓ -32% к прошлому" color="green" />
         <KpiCard label="Новых клиентов" value="8" icon="👤" color="yellow" />
         <KpiCard label="Средний чек" value="927 ₽" icon="📊" trend="↑ +2%" color="teal" />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* График выручки */}
         <Card className="p-5">
           <h3 className="font-semibold text-gray-900 mb-4">Выручка по месяцам</h3>
