@@ -55,7 +55,7 @@ export default function DashboardLayout({ children }) {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                       isActive
-                        ? "bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium"
+                        ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
                         : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-700 hover:text-gray-900 dark:hover:text-white"
                     }`
                   }
@@ -110,7 +110,7 @@ export default function DashboardLayout({ children }) {
               🔔
               <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center leading-none">3</span>
             </button>
-            <div className="w-8 h-8 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 rounded-full flex items-center justify-center text-sm font-semibold">А</div>
+            <div className="w-8 h-8 bg-gray-100 dark:bg-zinc-700 text-gray-700 dark:text-gray-300 rounded-full flex items-center justify-center text-sm font-semibold">А</div>
           </div>
         </header>
 
@@ -133,7 +133,7 @@ export default function DashboardLayout({ children }) {
               className={({ isActive }) =>
                 `flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition-colors ${
                   isActive
-                    ? "text-violet-600 dark:text-violet-400"
+                    ? "text-indigo-600 dark:text-indigo-400"
                     : "text-gray-400 dark:text-gray-500"
                 }`
               }
@@ -179,7 +179,7 @@ export default function DashboardLayout({ children }) {
                   className={({ isActive }) =>
                     `flex flex-col items-center gap-1 p-3 rounded-xl text-xs transition-colors ${
                       isActive
-                        ? "bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300"
+                        ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
                         : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-700"
                     }`
                   }

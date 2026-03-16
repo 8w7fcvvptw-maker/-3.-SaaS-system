@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Включаем dark mode через класс на <html> */
-@variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 * {
   box-sizing: border-box;

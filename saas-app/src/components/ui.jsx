@@ -7,7 +7,7 @@
 export function Button({ children, variant = "primary", size = "md", onClick, className = "", disabled = false }) {
   const base = "inline-flex items-center gap-2 font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
   const variants = {
-    primary:   "bg-violet-600 text-white hover:bg-violet-700 focus:ring-violet-500",
+    primary:   "bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500",
     secondary: "bg-white dark:bg-zinc-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-700 focus:ring-gray-300",
     danger:    "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
     ghost:     "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-700 focus:ring-gray-300",
@@ -61,7 +61,7 @@ export function StatusBadge({ status }) {
 export function Avatar({ initials, size = "md" }) {
   const sizes = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-14 h-14 text-lg" };
   return (
-    <div className={`${sizes[size]} bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded-full flex items-center justify-center font-semibold shrink-0`}>
+    <div className={`${sizes[size]} bg-gray-100 text-gray-700 dark:bg-zinc-700 dark:text-gray-300 rounded-full flex items-center justify-center font-semibold shrink-0`}>
       {initials}
     </div>
   );
@@ -79,7 +79,7 @@ export function Card({ children, className = "" }) {
 // KPI карточка (для дашборда)
 export function KpiCard({ label, value, icon, trend, color = "violet" }) {
   const colors = {
-    violet:  "bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400",
+    violet:  "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400",
     green:   "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
     yellow:  "bg-yellow-50 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400",
     red:     "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400",
@@ -148,5 +148,46 @@ export function EmptyState({ icon, title, description }) {
       <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">{title}</h3>
       <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
     </div>
+  );
+}
+
+// Состояние загрузки
+export function LoadingState({ text = "Загрузка..." }) {
+  return (
+    <div className="text-center py-12">
+      <div className="flex justify-center mb-4">
+        <div className="animate-spin">
+          <div className="w-8 h-8 border-4 border-gray-200 dark:border-zinc-600 border-t-indigo-600 rounded-full"></div>
+        </div>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">{text}</p>
+    </div>
+  );
+}
+
+// Состояние ошибки
+export function ErrorState({ title = "Ошибка загрузки", description, message, onRetry }) {
+  return (
+    <Card className="p-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+      <div className="flex items-start gap-4">
+        <div className="text-2xl">⚠️</div>
+        <div className="flex-1">
+          <h3 className="font-semibold text-red-800 dark:text-red-400">{title}</h3>
+          {(description || message) && (
+            <p className="text-sm text-red-700 dark:text-red-300 mt-1">{description ?? message}</p>
+          )}
+          {onRetry && (
+            <Button 
+              size="sm" 
+              variant="secondary" 
+              onClick={onRetry}
+              className="mt-3"
+            >
+              Повторить попытку
+            </Button>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }

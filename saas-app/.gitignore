@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Переменные окружения — НИКОГДА не добавлять в git
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
