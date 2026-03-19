@@ -3,7 +3,10 @@
 // Здесь настроен роутинг — все URL и страницы
 // ============================================
 
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+
+// Context
+import { BookingProvider } from "./context/BookingContext";
 
 // Layouts
 import DashboardLayout from "./layouts/DashboardLayout";
@@ -26,12 +29,15 @@ import {
   CalendarPage,
   AppointmentsList,
   AppointmentDetail,
+  AppointmentEditor,
   ClientsPage,
   ClientProfile,
+  ClientEditor,
   ServicesPage,
   ServiceEditor,
   StaffPage,
   StaffProfile,
+  StaffEditor,
   MessagesPage,
   AnalyticsPage,
   SettingsPage,
@@ -49,14 +55,16 @@ export default function App() {
     <BrowserRouter>
       <Routes>
 
-        {/* ---- Публичная зона (без layout обёртки, у каждой страницы свой BookingLayout) ---- */}
-        <Route path="/book/:slug"    element={<BookingLanding />} />
-        <Route path="/book/services" element={<ServiceSelection />} />
-        <Route path="/book/staff"    element={<StaffSelection />} />
-        <Route path="/book/calendar" element={<DateTimeSelection />} />
-        <Route path="/book/details"  element={<ClientDetails />} />
-        <Route path="/book/confirm"  element={<BookingConfirm />} />
-        <Route path="/book/success"  element={<BookingSuccess />} />
+        {/* ---- Публичная зона (BookingProvider общий для потока записи) ---- */}
+        <Route path="/book/:slug" element={<BookingLanding />} />
+        <Route path="/book" element={<BookingProvider><Outlet /></BookingProvider>}>
+          <Route path="services" element={<ServiceSelection />} />
+          <Route path="staff"    element={<StaffSelection />} />
+          <Route path="calendar" element={<DateTimeSelection />} />
+          <Route path="details"  element={<ClientDetails />} />
+          <Route path="confirm"  element={<BookingConfirm />} />
+          <Route path="success"  element={<BookingSuccess />} />
+        </Route>
 
         {/* ---- Кабинет бизнеса (обёрнут в DashboardLayout) ---- */}
         <Route
@@ -72,12 +80,20 @@ export default function App() {
           element={<DashboardLayout><AppointmentsList /></DashboardLayout>}
         />
         <Route
+          path="/appointments/new"
+          element={<DashboardLayout><AppointmentEditor /></DashboardLayout>}
+        />
+        <Route
           path="/appointments/:id"
           element={<DashboardLayout><AppointmentDetail /></DashboardLayout>}
         />
         <Route
           path="/clients"
           element={<DashboardLayout><ClientsPage /></DashboardLayout>}
+        />
+        <Route
+          path="/clients/new"
+          element={<DashboardLayout><ClientEditor /></DashboardLayout>}
         />
         <Route
           path="/clients/:id"
@@ -94,6 +110,10 @@ export default function App() {
         <Route
           path="/staff"
           element={<DashboardLayout><StaffPage /></DashboardLayout>}
+        />
+        <Route
+          path="/staff/new"
+          element={<DashboardLayout><StaffEditor /></DashboardLayout>}
         />
         <Route
           path="/staff/:id"

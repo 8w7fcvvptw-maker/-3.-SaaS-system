@@ -4,7 +4,7 @@
 // Services, Staff, Messages, Analytics, Settings
 // ============================================
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 import {
@@ -12,18 +12,27 @@ import {
   PageHeader, EmptyState, LoadingState, ErrorState,
 } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
+import { normalizePhone } from "../../lib/phoneUtils";
 import {
   getAppointments, getAppointmentsByDate, getAppointmentById,
-  getClients, getClientById,
+  getClients, getClientById, createClient, updateClient,
   getServices, getServiceById,
-  getStaff, getStaffById,
+  getStaff, getStaffById, createStaff,
   getAppointmentsByStaff, getAppointmentsByClient,
   getBusiness, updateBusiness, updateService, createService, deleteService,
+  createAppointment, updateAppointment, updateAppointmentStatus,
   getRevenueData,
 } from "../../lib/api";
 
 // Сегодняшняя дата в формате YYYY-MM-DD
 const TODAY = new Date().toISOString().slice(0, 10);
+
+// Временные слоты с шагом 15 минут (09:00–21:00)
+const TIME_SLOTS_15 = Array.from({ length: 49 }, (_, i) => {
+  const h = 9 + Math.floor((i * 15) / 60);
+  const m = (i * 15) % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+});
 
 // ── 2.1 Dashboard (/dashboard) ────────────────────────────────
 export function Dashboard() {
@@ -124,7 +133,7 @@ export function CalendarPage() {
               </button>
             ))}
           </div>
-          <Button onClick={() => {}}>+ Запись</Button>
+          <Button onClick={() => navigate("/appointments/new")}>+ Запись</Button>
         </div>
       </div>
 
@@ -190,6 +199,177 @@ export function CalendarPage() {
   );
 }
 
+// ── 2.3.1 Новая запись (/appointments/new) ─────────────────────
+export function AppointmentEditor() {
+  const navigate = useNavigate();
+  const TODAY = new Date().toISOString().slice(0, 10);
+  const { data: business } = useAsync(() => getBusiness());
+  const { data: services } = useAsync(() => getServices());
+  const { data: staffList } = useAsync(() => getStaff());
+  const [form, setForm] = useState({
+    client_name: "",
+    client_phone: "",
+    service_id: "",
+    staff_id: "",
+    date: TODAY,
+    time: "10:00",
+    notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [saveError, setSaveError] = useState(null);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+
+  const svcs = services ?? [];
+  const staffArr = staffList ?? [];
+  const selectedService = svcs.find(s => String(s.id) === String(form.service_id));
+
+  const u = (f) => (e) => {
+    setForm(p => ({ ...p, [f]: e.target.value }));
+    if (errors[f]) setErrors(p => ({ ...p, [f]: undefined }));
+    if (saveError) setSaveError(null);
+  };
+
+  const handleSave = async () => {
+    setSaveError(null);
+    const errs = {};
+    if (!form.client_name?.trim()) errs.client_name = "Введите имя клиента";
+    if (!form.client_phone?.trim()) errs.client_phone = "Введите телефон";
+    if (!form.service_id) errs.service_id = "Выберите услугу";
+    if (!form.staff_id) errs.staff_id = "Выберите мастера";
+    if (Object.keys(errs).length) return setErrors(errs);
+    if (!business?.id) {
+      setSaveError("Создайте бизнес в Supabase (см. КАК_СОЗДАТЬ_БИЗНЕС.md).");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const data = {
+        client_name: form.client_name.trim(),
+        client_phone: form.client_phone.trim(),
+        service_id: selectedService?.id != null ? Number(selectedService.id) : null,
+        service: selectedService?.name ?? "",
+        staff_id: form.staff_id ? Number(form.staff_id) : null,
+        staff_name: staffArr.find(s => String(s.id) === form.staff_id)?.name ?? "",
+        date: form.date,
+        time: form.time,
+        duration: selectedService?.duration ?? 30,
+        price: selectedService?.price ?? 0,
+        status: "pending",
+        notes: form.notes?.trim() || null,
+      };
+      if (business?.id) data.business_id = business.id;
+      await createAppointment(data);
+      navigate("/appointments");
+    } catch (err) {
+      const msg = err?.message || String(err);
+      setSaveError(msg.includes("business_id") ? "Создайте бизнес в Supabase (см. КАК_СОЗДАТЬ_БИЗНЕС.md)." : msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={() => navigate("/appointments")} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer">← Назад</button>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Новая запись</h1>
+      </div>
+      <Card className="p-6 max-w-lg">
+        <div className="space-y-4">
+          {saveError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+              {saveError}
+            </div>
+          )}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Имя клиента <span className="text-red-500">*</span></label>
+            <input type="text" value={form.client_name} onChange={u("client_name")} placeholder="Иван Петров"
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.client_name ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`} />
+            {errors.client_name && <p className="text-xs text-red-500 mt-1">{errors.client_name}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Телефон <span className="text-red-500">*</span></label>
+            <input type="tel" value={form.client_phone} onChange={(e) => u("client_phone")({ ...e, target: { ...e.target, value: normalizePhone(e.target.value) } })} placeholder="+7 (999) 000-00-00"
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.client_phone ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`} />
+            {errors.client_phone && <p className="text-xs text-red-500 mt-1">{errors.client_phone}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Услуга <span className="text-red-500">*</span></label>
+            <select value={form.service_id} onChange={u("service_id")}
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.service_id ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`}>
+              <option value="">— Выберите услугу</option>
+              {svcs.map(s => <option key={s.id} value={s.id}>{s.name} — {(s.price ?? 0).toLocaleString()} ₽</option>)}
+            </select>
+            {errors.service_id && <p className="text-xs text-red-500 mt-1">{errors.service_id}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Мастер <span className="text-red-500">*</span></label>
+            <select value={form.staff_id} onChange={u("staff_id")}
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.staff_id ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`}>
+              <option value="">— Выберите мастера</option>
+              {staffArr.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {errors.staff_id && <p className="text-xs text-red-500 mt-1">{errors.staff_id}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Дата</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500 pointer-events-none text-sm">📅</span>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={u("date")}
+                  min={TODAY}
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 dark:focus:border-violet-400 [color-scheme:light] dark:[color-scheme:dark]"
+                />
+              </div>
+            </div>
+            <div className="relative">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">🕐 Время</label>
+              <button
+                type="button"
+                onClick={() => setTimePickerOpen(v => !v)}
+                className="w-full flex items-center justify-between border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 dark:focus:border-violet-400 cursor-pointer text-left"
+              >
+                <span>{TIME_SLOTS_15.includes(form.time) ? form.time : TIME_SLOTS_15[0]}</span>
+                <span className="text-gray-400 dark:text-zinc-500">▾</span>
+              </button>
+              {timePickerOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setTimePickerOpen(false)} aria-hidden="true" />
+                  <div className="absolute left-0 right-0 top-full mt-1 z-50 max-h-[11rem] overflow-y-auto border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 rounded-lg shadow-lg py-1">
+                    {TIME_SLOTS_15.map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => { setForm(p => ({ ...p, time: val })); setTimePickerOpen(false); }}
+                        className={`w-full px-3 py-2 text-left text-sm cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-900/30 ${form.time === val ? "bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 font-medium" : "text-gray-900 dark:text-gray-100"}`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Заметки</label>
+            <textarea value={form.notes} onChange={u("notes")} rows={2} placeholder="Комментарий к записи..." className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button className="flex-1 justify-center" onClick={handleSave} disabled={saving}>{saving ? "Сохранение..." : "Создать запись"}</Button>
+            <Button variant="secondary" onClick={() => navigate("/appointments")} disabled={saving}>Отмена</Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── 2.3 Список записей (/appointments) ────────────────────────
 export function AppointmentsList() {
   const navigate = useNavigate();
@@ -208,7 +388,7 @@ export function AppointmentsList() {
       <PageHeader
         title="Записи"
         subtitle={`${appointments.length} записей`}
-        action={<Button onClick={() => {}}>+ Новая запись</Button>}
+        action={<Button onClick={() => navigate("/appointments/new")}>+ Новая запись</Button>}
       />
 
       <div className="flex gap-2 mb-4 flex-wrap">
@@ -292,7 +472,39 @@ export function AppointmentsList() {
 export function AppointmentDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { data: a, loading, error } = useAsync(() => getAppointmentById(id));
+  const { data: a, loading, error, execute: reload } = useAsync(() => getAppointmentById(id));
+  const [notes, setNotes] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
+
+  useEffect(() => {
+    if (a) setNotes(a.notes || "");
+  }, [a?.id]);
+
+  const handleStatusChange = async (status) => {
+    if (a.status === status) return;
+    setSavingStatus(true);
+    try {
+      await updateAppointmentStatus(id, status);
+      await reload();
+    } catch (err) {
+      alert(`Ошибка: ${err.message}`);
+    } finally {
+      setSavingStatus(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    setSavingNotes(true);
+    try {
+      await updateAppointment(id, { notes });
+      await reload();
+    } catch (err) {
+      alert(`Ошибка: ${err.message}`);
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   if (loading) return <LoadingState />;
   if (error)   return <ErrorState message={`Запись не найдена: ${error.message}`} />;
@@ -302,14 +514,14 @@ export function AppointmentDetail() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => navigate("/appointments")} className="text-gray-400 hover:text-gray-600 cursor-pointer">← Назад</button>
-        <h1 className="text-xl font-bold text-gray-900">Запись #{a.id}</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Запись #{a.id}</h1>
         <StatusBadge status={a.status} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 space-y-4">
           <Card className="p-5">
-            <h3 className="font-semibold text-gray-900 mb-4">Детали записи</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Детали записи</h3>
             <div className="grid grid-cols-2 gap-4">
               {[
                 ["Услуга", a.service],
@@ -321,31 +533,35 @@ export function AppointmentDetail() {
               ].map(([label, value]) => (
                 <div key={label}>
                   <div className="text-xs text-gray-400 mb-0.5">{label}</div>
-                  <div className="font-medium text-gray-900">{value}</div>
+                  <div className="font-medium text-gray-900 dark:text-white">{value}</div>
                 </div>
               ))}
             </div>
           </Card>
 
           <Card className="p-5">
-            <h3 className="font-semibold text-gray-900 mb-3">Заметки</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Заметки</h3>
             <textarea
-              defaultValue={a.notes || ""}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              onBlur={handleSaveNotes}
               placeholder="Добавьте заметку..."
               rows={3}
-              className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+              disabled={savingNotes}
+              className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none disabled:opacity-70"
             />
+            {savingNotes && <p className="text-xs text-gray-400 mt-1">Сохранение...</p>}
           </Card>
         </div>
 
         <div className="space-y-4">
           <Card className="p-5">
-            <h3 className="font-semibold text-gray-900 mb-3">Клиент</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Клиент</h3>
             <div className="flex items-center gap-3 mb-3">
               <Avatar initials={(a.client_name ?? a.clientName ?? "?").split(" ").map(w => w[0]).join("")} size="lg" />
               <div>
-                <div className="font-semibold text-gray-900">{a.client_name ?? a.clientName}</div>
-                <div className="text-sm text-gray-500">{a.client_phone ?? a.clientPhone}</div>
+                <div className="font-semibold text-gray-900 dark:text-white">{a.client_name ?? a.clientName}</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">{a.client_phone ?? a.clientPhone}</div>
               </div>
             </div>
             <Button variant="secondary" size="sm" className="w-full justify-center" onClick={() => navigate("/clients")}>
@@ -354,12 +570,14 @@ export function AppointmentDetail() {
           </Card>
 
           <Card className="p-5">
-            <h3 className="font-semibold text-gray-900 mb-3">Статус</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Статус</h3>
             <div className="space-y-2">
-              {["confirmed", "completed", "cancelled", "no-show"].map(s => (
+              {["pending", "confirmed", "completed", "cancelled", "no-show"].map(s => (
                 <button
                   key={s}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer ${a.status === s ? "border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300" : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"}`}
+                  disabled={savingStatus}
+                  onClick={() => handleStatusChange(s)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer disabled:opacity-50 ${a.status === s ? "border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300" : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"}`}
                 >
                   <StatusBadge status={s} />
                 </button>
@@ -392,7 +610,7 @@ export function ClientsPage() {
       <PageHeader
         title="Клиенты"
         subtitle={`${clients.length} клиентов`}
-        action={<Button onClick={() => {}}>+ Добавить клиента</Button>}
+        action={<Button onClick={() => navigate("/clients/new")}>+ Добавить клиента</Button>}
       />
 
       <div className="mb-4">
@@ -469,12 +687,115 @@ export function ClientsPage() {
   );
 }
 
+// ── 2.5.1 Новый клиент (/clients/new) ─────────────────────────
+const EMPTY_CLIENT = { name: "", phone: "", email: "", notes: "" };
+
+export function ClientEditor() {
+  const navigate = useNavigate();
+  const { data: business, loading: bizLoading } = useAsync(() => getBusiness());
+  const [form, setForm] = useState({ ...EMPTY_CLIENT });
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [saveError, setSaveError] = useState(null);
+
+  const u = (f) => (e) => {
+    setForm(p => ({ ...p, [f]: e.target.value }));
+    if (errors[f]) setErrors(p => ({ ...p, [f]: undefined }));
+    if (saveError) setSaveError(null);
+  };
+
+  const handleSave = async () => {
+    setSaveError(null);
+    const errs = {};
+    if (!form.name?.trim()) errs.name = "Введите имя";
+    if (!form.phone?.trim()) errs.phone = "Введите телефон";
+    if (Object.keys(errs).length) return setErrors(errs);
+
+    setSaving(true);
+    try {
+      const data = {
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        email: form.email?.trim() || null,
+        notes: form.notes?.trim() || null,
+        total_visits: 0,
+        total_spent: 0,
+        tags: [],
+      };
+      if (business?.id) data.business_id = business.id;
+      await createClient(data);
+      navigate("/clients");
+    } catch (err) {
+      const msg = err?.message || String(err);
+      setSaveError(msg.includes("business_id") ? "Добавьте бизнес в Настройках (таблица businesses должна содержать хотя бы одну запись)." : msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={() => navigate("/clients")} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer">← Назад</button>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Новый клиент</h1>
+      </div>
+      <Card className="p-6 max-w-lg">
+        <div className="space-y-4">
+          {[["Имя", "name", "text", true], ["Телефон", "phone", "tel", true], ["Email", "email", "email", false]].map(([label, field, type, required]) => (
+            <div key={field}>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
+              <input
+                type={type}
+                value={form[field] ?? ""}
+                onChange={field === "phone" ? (e) => u("phone")({ ...e, target: { ...e.target, value: normalizePhone(e.target.value) } }) : u(field)}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors[field] ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`}
+              />
+              {errors[field] && <p className="text-xs text-red-500 mt-1">{errors[field]}</p>}
+            </div>
+          ))}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Заметки</label>
+            <textarea value={form.notes ?? ""} onChange={u("notes")} rows={3} className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+          </div>
+          {saveError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+              {saveError}
+            </div>
+          )}
+          <div className="flex gap-3 pt-2">
+            <Button className="flex-1 justify-center" onClick={handleSave} disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
+            <Button variant="secondary" onClick={() => navigate("/clients")} disabled={saving}>Отмена</Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── 2.6 Профиль клиента (/clients/:id) ────────────────────────
 export function ClientProfile() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { data: c, loading: cLoading, error: cError }     = useAsync(() => getClientById(id));
+  const { data: c, loading: cLoading, error: cError, execute: reload } = useAsync(() => getClientById(id));
   const { data: allApps, loading: appsLoading, error: appsError } = useAsync(() => getAppointments());
+  const [notes, setNotes] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
+
+  useEffect(() => {
+    if (c) setNotes(c.notes ?? "");
+  }, [c?.id]);
+
+  const handleSaveNotes = async () => {
+    setSavingNotes(true);
+    try {
+      await updateClient(id, { notes });
+      await reload();
+    } catch (err) {
+      alert(`Ошибка: ${err.message}`);
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   const loading = cLoading || appsLoading;
   const error   = cError || appsError;
@@ -490,7 +811,7 @@ export function ClientProfile() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => navigate("/clients")} className="text-gray-400 hover:text-gray-600 cursor-pointer">← Назад</button>
-        <h1 className="text-xl font-bold text-gray-900">{c.name}</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">{c.name}</h1>
         {tags.map(t => <Badge key={t} color={t === "VIP" ? "purple" : "teal"}>{t}</Badge>)}
       </div>
 
@@ -500,22 +821,22 @@ export function ClientProfile() {
             <div className="flex items-center gap-3 mb-4">
               <Avatar initials={c.name.split(" ").map(w => w[0]).join("")} size="lg" />
               <div>
-                <div className="font-bold text-gray-900">{c.name}</div>
-                <div className="text-sm text-gray-500">{c.phone}</div>
+                <div className="font-bold text-gray-900 dark:text-white">{c.name}</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">{c.phone}</div>
               </div>
             </div>
             <div className="space-y-2 text-sm">
               {[["📧 Email", c.email], ["📞 Телефон", c.phone]].map(([l, v]) => (
                 <div key={l} className="flex justify-between">
-                  <span className="text-gray-500">{l}</span>
-                  <span className="font-medium text-gray-900">{v}</span>
+                  <span className="text-gray-500 dark:text-gray-400">{l}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{v}</span>
                 </div>
               ))}
             </div>
           </Card>
 
           <Card className="p-5">
-            <h3 className="font-semibold text-gray-900 mb-3">Статистика</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Статистика</h3>
             <div className="space-y-3">
               {[
                 ["Всего визитов", c.total_visits ?? c.totalVisits ?? 0],
@@ -523,16 +844,24 @@ export function ClientProfile() {
                 ["Последний визит", c.last_visit ?? c.lastVisit ?? "—"],
               ].map(([l, v]) => (
                 <div key={l} className="flex justify-between text-sm">
-                  <span className="text-gray-500">{l}</span>
-                  <span className="font-semibold text-gray-900">{v}</span>
+                  <span className="text-gray-500 dark:text-gray-400">{l}</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{v}</span>
                 </div>
               ))}
             </div>
           </Card>
 
           <Card className="p-5">
-            <h3 className="font-semibold text-gray-900 mb-2">Заметки</h3>
-            <textarea defaultValue={c.notes ?? ""} rows={3} className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-500" />
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Заметки</h3>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              onBlur={handleSaveNotes}
+              rows={3}
+              disabled={savingNotes}
+              className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-70"
+            />
+            {savingNotes && <p className="text-xs text-gray-400 mt-1">Сохранение...</p>}
           </Card>
         </div>
 
@@ -658,6 +987,7 @@ export function ServiceEditor() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isNew = id === "new";
+  const { data: business } = useAsync(() => getBusiness());
 
   const { data: s, loading, error } = useAsync(
     () => isNew ? Promise.resolve(null) : getServiceById(id)
@@ -687,7 +1017,9 @@ export function ServiceEditor() {
     setSaving(true);
     try {
       if (isNew) {
-        await createService(form);
+        const data = { ...form };
+        if (business?.id) data.business_id = business.id;
+        await createService(data);
       } else {
         await updateService(id, form);
       }
@@ -778,6 +1110,120 @@ export function ServiceEditor() {
   );
 }
 
+// ── 2.8.1 Новый сотрудник (/staff/new) ────────────────────────
+const EMPTY_STAFF = { name: "", role: "Барбер", phone: "", specialization: "", working_hours: "Пн–Вс: 09:00–18:00", services: [] };
+
+export function StaffEditor() {
+  const navigate = useNavigate();
+  const { data: business, loading: bizLoading } = useAsync(() => getBusiness());
+  const { data: services } = useAsync(() => getServices());
+  const [form, setForm] = useState({ ...EMPTY_STAFF });
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [saveError, setSaveError] = useState(null);
+
+  const svcs = services ?? [];
+
+  const u = (f) => (e) => {
+    setForm(p => ({ ...p, [f]: e.target.value }));
+    if (errors[f]) setErrors(p => ({ ...p, [f]: undefined }));
+    if (saveError) setSaveError(null);
+  };
+
+  const toggleService = (id) => {
+    setForm(p => ({
+      ...p,
+      services: p.services.includes(id) ? p.services.filter(x => x !== id) : [...p.services, id],
+    }));
+    if (saveError) setSaveError(null);
+  };
+
+  const handleSave = async () => {
+    setSaveError(null);
+    const errs = {};
+    if (!form.name?.trim()) errs.name = "Введите имя";
+    if (!form.role?.trim()) errs.role = "Введите должность";
+    if (Object.keys(errs).length) return setErrors(errs);
+
+    if (!bizLoading && !business?.id) {
+      setSaveError("Создайте бизнес в Supabase (см. КАК_СОЗДАТЬ_БИЗНЕС.md), затем обновите страницу.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const data = {
+        name: form.name.trim(),
+        role: form.role.trim(),
+        phone: form.phone?.trim() || null,
+        specialization: form.specialization?.trim() || null,
+        working_hours: form.working_hours?.trim() || null,
+        services: form.services ?? [],
+        rating: 0,
+        avatar: form.name.trim().split(" ").map(w => w[0]).join("").slice(0, 2) || "?",
+      };
+      if (business?.id) data.business_id = business.id;
+      await createStaff(data);
+      navigate("/staff");
+    } catch (err) {
+      const msg = err?.message || String(err);
+      setSaveError(msg.includes("business_id") ? "Таблица staff требует business_id. Создайте бизнес в Supabase." : msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={() => navigate("/staff")} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer">← Назад</button>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Новый сотрудник</h1>
+      </div>
+      <Card className="p-6 max-w-lg">
+        <div className="space-y-4">
+          {saveError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+              {saveError}
+            </div>
+          )}
+          {[["Имя", "name", "text"], ["Должность", "role", "text"], ["Телефон", "phone", "tel"], ["Специализация", "specialization", "text"], ["Расписание", "working_hours", "text"]].map(([label, field, type]) => (
+            <div key={field}>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">{label}</label>
+              <input
+                type={type}
+                value={form[field] ?? ""}
+                onChange={field === "phone" ? (e) => u("phone")({ ...e, target: { ...e.target, value: normalizePhone(e.target.value) } }) : u(field)}
+                placeholder={field === "working_hours" ? "Пн–Вс: 09:00–18:00" : ""}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors[field] ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`}
+              />
+              {errors[field] && <p className="text-xs text-red-500 mt-1">{errors[field]}</p>}
+            </div>
+          ))}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">Услуги</label>
+            <div className="flex flex-wrap gap-2">
+              {svcs.map(s => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => toggleService(s.id)}
+                  className={`px-3 py-1.5 rounded-full text-sm border cursor-pointer transition-colors ${form.services.includes(s.id) ? "bg-violet-600 text-white border-violet-600" : "border-gray-200 dark:border-zinc-600 text-gray-600 dark:text-gray-300 hover:border-violet-300"}`}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button className="flex-1 justify-center" onClick={handleSave} disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
+            <Button variant="secondary" onClick={() => navigate("/staff")} disabled={saving}>Отмена</Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── 2.9 Сотрудники (/staff) ───────────────────────────────────
 export function StaffPage() {
   const navigate = useNavigate();
@@ -795,7 +1241,7 @@ export function StaffPage() {
       <PageHeader
         title="Сотрудники"
         subtitle={`${staff.length} мастеров`}
-        action={<Button onClick={() => {}}>+ Добавить сотрудника</Button>}
+        action={<Button onClick={() => navigate("/staff/new")}>+ Добавить сотрудника</Button>}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -913,15 +1359,39 @@ export function StaffProfile() {
 }
 
 // ── 2.11 Уведомления (/messages) ──────────────────────────────
+const INITIAL_TEMPLATES = [
+  { id: 1, name: "Подтверждение записи", trigger: "При записи",        channel: "SMS + Email", active: true },
+  { id: 2, name: "Напоминание",          trigger: "За 24 часа",         channel: "SMS",         active: true },
+  { id: 3, name: "Отмена записи",        trigger: "При отмене",         channel: "SMS + Email", active: true },
+  { id: 4, name: "Follow-up",            trigger: "Через день после",   channel: "Email",       active: false },
+];
+
 export function MessagesPage() {
   const { data: appointments, loading, error } = useAsync(() => getAppointments());
+  const [templates, setTemplates] = useState(INITIAL_TEMPLATES);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", trigger: "", channel: "" });
 
-  const templates = [
-    { id: 1, name: "Подтверждение записи", trigger: "При записи",        channel: "SMS + Email", active: true },
-    { id: 2, name: "Напоминание",          trigger: "За 24 часа",         channel: "SMS",         active: true },
-    { id: 3, name: "Отмена записи",        trigger: "При отмене",         channel: "SMS + Email", active: true },
-    { id: 4, name: "Follow-up",            trigger: "Через день после",   channel: "Email",       active: false },
-  ];
+  const toggleTemplate = (id) => {
+    setTemplates((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, active: !t.active } : t))
+    );
+  };
+
+  const openEdit = (t) => {
+    setEditingTemplate(t);
+    setEditForm({ name: t.name, trigger: t.trigger, channel: t.channel });
+  };
+
+  const saveEdit = () => {
+    if (!editingTemplate) return;
+    setTemplates((prev) =>
+      prev.map((t) =>
+        t.id === editingTemplate.id ? { ...t, ...editForm } : t
+      )
+    );
+    setEditingTemplate(null);
+  };
 
   return (
     <div>
@@ -938,11 +1408,15 @@ export function MessagesPage() {
                     <div className="font-medium text-gray-900 dark:text-white text-sm">{t.name}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">{t.trigger} · {t.channel}</div>
                   </div>
-                  <div className={`w-10 h-5 rounded-full transition-colors cursor-pointer relative ${t.active ? "bg-violet-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                  <button
+                    type="button"
+                    onClick={() => toggleTemplate(t.id)}
+                    className={`w-10 h-5 rounded-full transition-colors cursor-pointer relative flex-shrink-0 ${t.active ? "bg-violet-600" : "bg-gray-300 dark:bg-zinc-600"}`}
+                  >
                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${t.active ? "translate-x-5" : "translate-x-0.5"}`} />
-                  </div>
+                  </button>
                 </div>
-                <Button size="sm" variant="ghost">Редактировать</Button>
+                <Button size="sm" variant="ghost" onClick={() => openEdit(t)}>Редактировать</Button>
               </Card>
             ))}
           </div>
@@ -967,6 +1441,49 @@ export function MessagesPage() {
           )}
         </div>
       </div>
+
+      {/* Модальное окно редактирования шаблона */}
+      {editingTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setEditingTemplate(null)} />
+          <Card className="relative z-10 p-6 w-full max-w-md mx-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Редактировать шаблон</h3>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Название</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Триггер</label>
+                <input
+                  type="text"
+                  value={editForm.trigger}
+                  onChange={e => setEditForm(p => ({ ...p, trigger: e.target.value }))}
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Канал</label>
+                <input
+                  type="text"
+                  value={editForm.channel}
+                  onChange={e => setEditForm(p => ({ ...p, channel: e.target.value }))}
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="secondary" onClick={() => setEditingTemplate(null)}>Отмена</Button>
+              <Button onClick={saveEdit}>Сохранить</Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -1073,8 +1590,18 @@ export function AnalyticsPage() {
 // ── 2.13 Настройки (/settings) ────────────────────────────────
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile");
-  const [notifications, setNotifications] = useState({ email: true, sms: true, reminderHours: 24 });
-  const [booking, setBooking]             = useState({ onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 });
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const s = localStorage.getItem("settings_notifications");
+      return s ? { ...{ email: true, sms: true, reminderHours: 24 }, ...JSON.parse(s) } : { email: true, sms: true, reminderHours: 24 };
+    } catch { return { email: true, sms: true, reminderHours: 24 }; }
+  });
+  const [booking, setBooking] = useState(() => {
+    try {
+      const s = localStorage.getItem("settings_booking");
+      return s ? { ...{ onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 }, ...JSON.parse(s) } : { onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 };
+    } catch { return { onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 }; }
+  });
   const { theme, setTheme } = useTheme();
 
   const { data: bizData, loading, error } = useAsync(() => getBusiness());
@@ -1092,14 +1619,30 @@ export function SettingsPage() {
   ];
 
   const handleSaveBiz = async () => {
-    if (!biz) return;
+    if (!biz?.id) return;
     setSaving(true);
     try {
-      await updateBusiness(biz.id, biz);
+      await updateBusiness(biz.id, {
+        name: biz.name,
+        address: biz.address,
+        phone: biz.phone,
+        email: biz.email,
+        description: biz.description,
+      });
+      alert("Сохранено");
     } catch (err) {
       alert(`Ошибка: ${err.message}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveSettings = (key) => {
+    try {
+      localStorage.setItem(`settings_${key}`, JSON.stringify(key === "booking" ? booking : notifications));
+      alert("Сохранено");
+    } catch {
+      alert("Сохранено (локально)");
     }
   };
 
@@ -1132,7 +1675,7 @@ export function SettingsPage() {
                   <label className="text-sm font-medium text-gray-700 block mb-1">{label}</label>
                   <input
                     value={biz[field] ?? ""}
-                    onChange={e => setBiz(p => ({ ...p, [field]: e.target.value }))}
+                    onChange={e => setBiz(p => ({ ...p, [field]: field === "phone" ? normalizePhone(e.target.value) : e.target.value }))}
                     className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
                 </div>
@@ -1175,7 +1718,7 @@ export function SettingsPage() {
               <input type="number" value={booking.cancellationHours} onChange={e => setBooking(p => ({ ...p, cancellationHours: +e.target.value }))}
                 className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
-            <Button>Сохранить</Button>
+            <Button onClick={() => handleSaveSettings("booking")}>Сохранить</Button>
           </div>
         </Card>
       )}
@@ -1197,7 +1740,7 @@ export function SettingsPage() {
               <input type="number" value={notifications.reminderHours} onChange={e => setNotifications(p => ({ ...p, reminderHours: +e.target.value }))}
                 className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
-            <Button>Сохранить</Button>
+            <Button onClick={() => handleSaveSettings("notifications")}>Сохранить</Button>
           </div>
         </Card>
       )}

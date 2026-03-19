@@ -4,11 +4,13 @@
 // ============================================
 
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import BookingLayout from "../../layouts/BookingLayout";
 import { Button, Card, StarRating, Avatar, StatusBadge, LoadingState, ErrorState } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
+import { useBooking } from "../../context/BookingContext";
 import { getBusiness, getActiveServices, getStaff, getTimeSlots, getBusySlots, createAppointment } from "../../lib/api";
+import { normalizePhone } from "../../lib/phoneUtils";
 
 // ── 1. Лендинг бизнеса (/book/:slug) ──────────────────────────
 export function BookingLanding() {
@@ -94,6 +96,7 @@ export function BookingLanding() {
 // ── 2. Выбор услуги (/book/services) ──────────────────────────
 export function ServiceSelection() {
   const navigate = useNavigate();
+  const { updateBooking } = useBooking();
   const [activeCategory, setActiveCategory] = useState("Все");
   const { data, loading, error } = useAsync(() => getActiveServices());
 
@@ -101,8 +104,13 @@ export function ServiceSelection() {
   if (error)   return <BookingLayout currentStep={0}><ErrorState message={error.message} /></BookingLayout>;
 
   const services   = data ?? [];
-  const categories = ["Все", ...new Set(services.map(s => s.category))];
+  const categories = ["Все", ...new Set(services.map(s => s.category).filter(Boolean))];
   const filtered   = activeCategory === "Все" ? services : services.filter(s => s.category === activeCategory);
+
+  const selectService = (s) => {
+    updateBooking({ service: s });
+    navigate("/book/staff");
+  };
 
   return (
     <BookingLayout currentStep={0}>
@@ -127,7 +135,7 @@ export function ServiceSelection() {
           <Card
             key={s.id}
             className="p-4 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all border border-transparent"
-            onClick={() => navigate("/book/staff")}
+            onClick={() => selectService(s)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -152,12 +160,18 @@ export function ServiceSelection() {
 // ── 3. Выбор мастера (/book/staff) ────────────────────────────
 export function StaffSelection() {
   const navigate = useNavigate();
+  const { updateBooking } = useBooking();
   const { data, loading, error } = useAsync(() => getStaff());
 
   if (loading) return <BookingLayout currentStep={1}><LoadingState /></BookingLayout>;
   if (error)   return <BookingLayout currentStep={1}><ErrorState message={error.message} /></BookingLayout>;
 
   const staff = data ?? [];
+
+  const selectStaff = (s) => {
+    updateBooking({ staff: s });
+    navigate("/book/calendar");
+  };
 
   return (
     <BookingLayout currentStep={1}>
@@ -169,7 +183,7 @@ export function StaffSelection() {
           <Card
             key={s.id}
             className="p-4 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all border border-transparent"
-            onClick={() => navigate("/book/calendar")}
+            onClick={() => selectStaff(s)}
           >
             <div className="flex items-center gap-4">
               <Avatar initials={s.avatar ?? s.name.split(" ").map(w => w[0]).join("")} size="lg" />
@@ -187,7 +201,7 @@ export function StaffSelection() {
         ))}
       </div>
 
-      <Button variant="secondary" className="w-full justify-center" onClick={() => navigate("/book/calendar")}>
+      <Button variant="secondary" className="w-full justify-center" onClick={() => { updateBooking({ staff: null }); navigate("/book/calendar"); }}>
         Любой свободный мастер
       </Button>
     </BookingLayout>
@@ -197,16 +211,7 @@ export function StaffSelection() {
 // ── 4. Выбор даты и времени (/book/calendar) ──────────────────
 export function DateTimeSelection() {
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedTime, setSelectedTime] = useState(null);
-
-  const { data: slots, loading: slotsLoading, error: slotsError } = useAsync(() => getTimeSlots());
-  const { data: busy,  loading: busyLoading,  error: busyError  } = useAsync(
-    () => getBusySlots(selectedDate ? new Date(new Date().getFullYear(), new Date().getMonth(), selectedDate).toISOString().slice(0, 10) : null),
-    false
-  );
-
-  // Генерируем 7 дней начиная со вчера
+  const { booking, updateBooking } = useBooking();
   const today = new Date();
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
@@ -218,8 +223,16 @@ export function DateTimeSelection() {
       iso: d.toISOString().slice(0, 10),
     };
   });
+  const defaultDay = days[1] ?? days[0];
+  const [selectedDateIso, setSelectedDateIso] = useState(defaultDay?.iso ?? null);
+  const [selectedTime, setSelectedTime] = useState(null);
 
-  if (!selectedDate && days[1]) setSelectedDate(days[1].num);
+  const { data: slots, loading: slotsLoading, error: slotsError } = useAsync(() => getTimeSlots());
+  const { data: busy,  loading: busyLoading,  error: busyError  } = useAsync(
+    () => getBusySlots(selectedDateIso, booking.staff?.id),
+    true,
+    [selectedDateIso, booking.staff?.id]
+  );
 
   const loading = slotsLoading || busyLoading;
   const error   = slotsError ?? busyError;
@@ -235,11 +248,11 @@ export function DateTimeSelection() {
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
         {days.map(d => (
           <button
-            key={d.num}
+            key={d.iso}
             disabled={!d.available}
-            onClick={() => { setSelectedDate(d.num); setSelectedTime(null); }}
+            onClick={() => { setSelectedDateIso(d.iso); setSelectedTime(null); }}
             className={`flex flex-col items-center px-3 py-2 rounded-xl border text-sm min-w-[52px] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-              selectedDate === d.num
+              selectedDateIso === d.iso
                 ? "bg-violet-600 text-white border-violet-600"
                 : "bg-white text-gray-700 border-gray-200 hover:border-violet-300"
             }`}
@@ -253,7 +266,7 @@ export function DateTimeSelection() {
       {loading ? <LoadingState /> : error ? <ErrorState message={error.message} /> : (
         <>
           <h3 className="text-sm font-medium text-gray-700 mb-3">Доступное время</h3>
-          <div className="grid grid-cols-4 gap-2 mb-6">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-6 max-h-[11rem] overflow-y-auto pr-1">
             {timeSlots.map(slot => {
               const isBusy = busySlots.includes(slot);
               return (
@@ -280,7 +293,10 @@ export function DateTimeSelection() {
       <Button
         className="w-full justify-center"
         disabled={!selectedTime}
-        onClick={() => navigate("/book/details")}
+        onClick={() => {
+          updateBooking({ date: selectedDateIso, time: selectedTime });
+          navigate("/book/details");
+        }}
       >
         Продолжить {selectedTime ? `· ${selectedTime}` : ""}
       </Button>
@@ -291,10 +307,26 @@ export function DateTimeSelection() {
 // ── 5. Данные клиента (/book/details) ─────────────────────────
 export function ClientDetails() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", phone: "", email: "", notes: "" });
+  const { booking, updateBooking } = useBooking();
+  const [form, setForm] = useState({
+    name: booking.clientName || "",
+    phone: booking.clientPhone || "",
+    email: booking.clientEmail || "",
+    notes: booking.notes || "",
+  });
 
   const update = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
   const valid = form.name.trim() && form.phone.trim();
+
+  const goToConfirm = () => {
+    updateBooking({
+      clientName: form.name.trim(),
+      clientPhone: form.phone.trim(),
+      clientEmail: form.email?.trim() || "",
+      notes: form.notes?.trim() || "",
+    });
+    navigate("/book/confirm");
+  };
 
   return (
     <BookingLayout currentStep={3}>
@@ -311,7 +343,7 @@ export function ClientDetails() {
             <label className="text-sm font-medium text-gray-700 block mb-1">
               {label} {required && <span className="text-red-500">*</span>}
             </label>
-            <input type={type} value={form[field]} onChange={update(field)} placeholder={placeholder}
+            <input type={type} value={form[field]} onChange={field === "phone" ? (e) => setForm(p => ({ ...p, phone: normalizePhone(e.target.value) })) : update(field)} placeholder={placeholder}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
           </div>
         ))}
@@ -322,7 +354,7 @@ export function ClientDetails() {
         </div>
       </Card>
 
-      <Button className="w-full justify-center mt-4" disabled={!valid} onClick={() => navigate("/book/confirm")}>
+      <Button className="w-full justify-center mt-4" disabled={!valid} onClick={goToConfirm}>
         Перейти к подтверждению
       </Button>
     </BookingLayout>
@@ -332,23 +364,45 @@ export function ClientDetails() {
 // ── 6. Подтверждение (/book/confirm) ──────────────────────────
 export function BookingConfirm() {
   const navigate = useNavigate();
+  const { booking, resetBooking } = useBooking();
+  const { data: business, loading: bizLoading } = useAsync(() => getBusiness());
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
+  const { service, staff, date, time, clientName, clientPhone, notes } = booking;
+  const duration = service?.duration ?? 30;
+  const price = service?.price ?? 0;
+  const dateStr = date ? new Date(date + "T12:00:00").toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
+  const staffName = staff?.name ?? "Любой мастер";
+  const staffRole = staff?.role ?? "";
+
   const handleBook = async () => {
+    if (!business?.id) {
+      setSubmitError("Создайте бизнес в Supabase (см. КАК_СОЗДАТЬ_БИЗНЕС.md).");
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
-      // В реальном проекте сюда передаются выбранные данные через context/state
       await createAppointment({
-        service: "Стрижка",
-        date: new Date().toISOString().slice(0, 10),
-        time: "11:00",
-        duration: 30,
-        price: 1200,
+        client_name: clientName || "Клиент",
+        client_phone: clientPhone || "",
+        service_id: service?.id,
+        service: service?.name ?? "",
+        staff_id: staff?.id ?? null,
+        staff_name: staffName,
+        date: date || new Date().toISOString().slice(0, 10),
+        time: time || "10:00",
+        duration,
+        price,
         status: "pending",
+        notes: notes || null,
+        business_id: business.id,
       });
-      navigate("/book/success");
+      resetBooking();
+      navigate("/book/success", {
+        state: { service, staff, date, time, clientPhone, price },
+      });
     } catch (err) {
       setSubmitError(err.message);
       setSubmitting(false);
@@ -362,29 +416,27 @@ export function BookingConfirm() {
       <Card className="p-6 space-y-4 mb-4">
         <div className="pb-4 border-b border-gray-100">
           <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Услуга</div>
-          <div className="font-semibold text-gray-900">Стрижка</div>
-          <div className="text-sm text-gray-500">30 минут</div>
+          <div className="font-semibold text-gray-900">{service?.name ?? "—"}</div>
+          <div className="text-sm text-gray-500">{duration} минут</div>
         </div>
         <div className="pb-4 border-b border-gray-100">
           <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Мастер</div>
           <div className="flex items-center gap-3">
-            <Avatar initials="АК" />
+            <Avatar initials={staffName.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"} />
             <div>
-              <div className="font-semibold text-gray-900">Алексей Краснов</div>
-              <div className="text-sm text-gray-500">Старший барбер</div>
+              <div className="font-semibold text-gray-900">{staffName}</div>
+              <div className="text-sm text-gray-500">{staffRole}</div>
             </div>
           </div>
         </div>
         <div className="pb-4 border-b border-gray-100">
           <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Дата и время</div>
-          <div className="font-semibold text-gray-900">
-            {new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-          </div>
-          <div className="text-sm text-gray-500">11:00 — 11:30</div>
+          <div className="font-semibold text-gray-900">{dateStr || "—"}</div>
+          <div className="text-sm text-gray-500">{time ?? "—"}</div>
         </div>
         <div>
           <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Итого</div>
-          <div className="text-2xl font-bold text-violet-600">1 200 ₽</div>
+          <div className="text-2xl font-bold text-violet-600">{(price ?? 0).toLocaleString()} ₽</div>
         </div>
       </Card>
 
@@ -398,8 +450,8 @@ export function BookingConfirm() {
         Нажимая «Записаться», вы соглашаетесь с политикой отмены
       </p>
 
-      <Button size="lg" className="w-full justify-center" onClick={handleBook} disabled={submitting}>
-        {submitting ? "Отправка..." : "Записаться"}
+      <Button size="lg" className="w-full justify-center" onClick={handleBook} disabled={submitting || bizLoading || !business?.id}>
+        {submitting ? "Отправка..." : bizLoading ? "Загрузка..." : !business?.id ? "Нет бизнеса в БД" : "Записаться"}
       </Button>
     </BookingLayout>
   );
@@ -408,7 +460,12 @@ export function BookingConfirm() {
 // ── 7. Успех (/book/success) ───────────────────────────────────
 export function BookingSuccess() {
   const navigate = useNavigate();
+  const { state } = useLocation();
   const { data: business } = useAsync(() => getBusiness());
+
+  const { service, staff, date, time, clientPhone, price } = state ?? {};
+  const dateStr = date ? new Date(date + "T12:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "";
+  const staffName = staff?.name ?? "Любой мастер";
 
   return (
     <BookingLayout>
@@ -422,10 +479,10 @@ export function BookingSuccess() {
         <Card className="p-5 text-left mb-6">
           <div className="space-y-2 text-sm">
             {[
-              ["Услуга", "Стрижка"],
-              ["Мастер", "Алексей Краснов"],
-              ["Дата",   new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })],
-              ["Время",  "11:00"],
+              ["Услуга", service?.name ?? "—"],
+              ["Мастер", staffName],
+              ["Дата", dateStr || "—"],
+              ["Время", time ?? "—"],
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between">
                 <span className="text-gray-500">{label}</span>
@@ -434,7 +491,7 @@ export function BookingSuccess() {
             ))}
             <div className="flex justify-between border-t border-gray-100 pt-2 mt-2">
               <span className="text-gray-500">Сумма</span>
-              <span className="font-bold text-violet-600">1 200 ₽</span>
+              <span className="font-bold text-violet-600">{(price ?? service?.price ?? 0).toLocaleString()} ₽</span>
             </div>
           </div>
         </Card>
@@ -444,7 +501,7 @@ export function BookingSuccess() {
             📅 Добавить в календарь
           </Button>
           <Button variant="secondary" className="w-full justify-center">
-            📞 {business?.phone ?? "+7 (495) 000-00-00"}
+            📞 {clientPhone || business?.phone || "+7 (495) 000-00-00"}
           </Button>
           <button
             onClick={() => navigate("/book/barbershop")}

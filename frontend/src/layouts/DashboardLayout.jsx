@@ -27,6 +27,8 @@ export default function DashboardLayout({ children }) {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-zinc-900 overflow-hidden">
@@ -106,11 +108,86 @@ export default function DashboardLayout({ children }) {
             >
               {theme === "light" ? "🌙" : "☀️"}
             </button>
-            <button className="relative text-gray-400 dark:text-gray-300 cursor-pointer p-1">
-              🔔
-              <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center leading-none">3</span>
-            </button>
-            <div className="w-8 h-8 bg-gray-100 dark:bg-zinc-700 text-gray-700 dark:text-gray-300 rounded-full flex items-center justify-center text-sm font-semibold">А</div>
+            <div className="relative">
+              <button
+                onClick={() => setNotificationsOpen(v => !v)}
+                className="relative text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+              >
+                🔔
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center leading-none">3</span>
+              </button>
+              {notificationsOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setNotificationsOpen(false)} aria-hidden="true" />
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl shadow-lg z-50 overflow-hidden">
+                    <div className="p-3 border-b border-gray-100 dark:border-zinc-700 flex items-center justify-between">
+                      <span className="font-semibold text-gray-900 dark:text-white text-sm">Уведомления</span>
+                      <button
+                        onClick={() => { setNotificationsOpen(false); navigate("/messages"); }}
+                        className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                      >
+                        Все →
+                      </button>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {[
+                        { id: 1, text: "Новая запись на завтра 10:00", time: "5 мин назад", unread: true },
+                        { id: 2, text: "Клиент Иван подтвердил визит", time: "1 час назад", unread: true },
+                        { id: 3, text: "Напоминание: 3 записи на сегодня", time: "2 часа назад", unread: true },
+                      ].map((n) => (
+                        <div
+                          key={n.id}
+                          className={`px-3 py-2.5 text-sm border-b border-gray-50 dark:border-zinc-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-zinc-700/50 cursor-pointer ${n.unread ? "bg-violet-50/50 dark:bg-violet-900/10" : ""}`}
+                          onClick={() => setNotificationsOpen(false)}
+                        >
+                          <div className="text-gray-900 dark:text-white">{n.text}</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{n.time}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setAccountMenuOpen(v => !v)}
+                className="w-8 h-8 bg-gray-100 dark:bg-zinc-700 text-gray-700 dark:text-gray-300 rounded-full flex items-center justify-center text-sm font-semibold hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors cursor-pointer"
+              >
+                А
+              </button>
+              {accountMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setAccountMenuOpen(false)} aria-hidden="true" />
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl shadow-lg z-50 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-gray-100 dark:border-zinc-700">
+                      <div className="font-medium text-gray-900 dark:text-white text-sm">Администратор</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">admin@barbershop.ru</div>
+                    </div>
+                    <button
+                      onClick={() => { setAccountMenuOpen(false); navigate("/settings"); }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-700"
+                    >
+                      ⚙️ Настройки
+                    </button>
+                    <button
+                      onClick={() => { setAccountMenuOpen(false); navigate("/dashboard"); }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-700"
+                    >
+                      📊 Дашборд
+                    </button>
+                    <div className="border-t border-gray-100 dark:border-zinc-700">
+                      <button
+                        onClick={() => { setAccountMenuOpen(false); navigate("/book/barbershop"); }}
+                        className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        Выйти
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 

@@ -3,6 +3,7 @@
 // Десктоп: боковая панель | Мобильный: нижняя навигация
 // ============================================
 
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 
 const adminNav = [
@@ -13,6 +14,7 @@ const adminNav = [
 
 export default function AdminLayout({ children }) {
   const navigate = useNavigate();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   return (
     <div className="flex h-screen bg-gray-900 overflow-hidden">
@@ -69,7 +71,39 @@ export default function AdminLayout({ children }) {
             <span className="md:hidden text-xl">🛡️</span>
             <div className="text-sm text-gray-400">Административная панель</div>
           </div>
-          <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">А</div>
+          <div className="relative">
+            <button
+              onClick={() => setAccountMenuOpen(v => !v)}
+              className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center text-sm font-semibold hover:bg-violet-500 transition-colors cursor-pointer"
+            >
+              А
+            </button>
+            {accountMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setAccountMenuOpen(false)} aria-hidden="true" />
+                <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 border border-gray-600 rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-600">
+                    <div className="font-medium text-white text-sm">Администратор</div>
+                    <div className="text-xs text-gray-400">admin@platform.ru</div>
+                  </div>
+                  <button
+                    onClick={() => { setAccountMenuOpen(false); navigate("/dashboard"); }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700"
+                  >
+                    ✂️ Кабинет бизнеса
+                  </button>
+                  <div className="border-t border-gray-600">
+                    <button
+                      onClick={() => { setAccountMenuOpen(false); navigate("/book/barbershop"); }}
+                      className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700"
+                    >
+                      Выйти
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6 bg-gray-900">

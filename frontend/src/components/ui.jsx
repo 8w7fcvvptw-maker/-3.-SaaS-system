@@ -4,7 +4,7 @@
 // ============================================
 
 // Кнопка с вариантами стиля
-export function Button({ children, variant = "primary", size = "md", onClick, className = "", disabled = false }) {
+export function Button({ children, variant = "primary", size = "md", onClick, className = "", disabled = false, type = "button" }) {
   const base = "inline-flex items-center gap-2 font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
   const variants = {
     primary:   "bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500",
@@ -19,7 +19,7 @@ export function Button({ children, variant = "primary", size = "md", onClick, cl
     lg: "px-6 py-3 text-base",
   };
   return (
-    <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} onClick={onClick} disabled={disabled}>
+    <button type={type} className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} onClick={onClick} disabled={disabled}>
       {children}
     </button>
   );
@@ -67,10 +67,10 @@ export function Avatar({ initials, size = "md" }) {
   );
 }
 
-// Карточка — белая в светлой, тёмная в тёмной теме
-export function Card({ children, className = "" }) {
+// Карточка — белая в светлой, тёмная в тёмной теме (передаёт onClick и другие обработчики)
+export function Card({ children, className = "", ...rest }) {
   return (
-    <div className={`bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-700 ${className}`}>
+    <div className={`bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-700 ${className}`} {...rest}>
       {children}
     </div>
   );

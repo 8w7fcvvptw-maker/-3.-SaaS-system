@@ -7,4 +7,15 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  test: {
+    globals: true,
+    environment: 'node',
+  },
+  server: {
+    host: true,
+    port: 5173,
+    fs: {
+      allow: [".."],
+    },
+  },
 })
