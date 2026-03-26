@@ -804,7 +804,11 @@ export function ClientProfile() {
   if (error)   return <ErrorState message={error.message} />;
   if (!c)      return <EmptyState icon="👤" title="Клиент не найден" description="" />;
 
-  const clientApps = (allApps ?? []).filter(a => (a.client_name ?? a.clientName) === c.name);
+  const clientApps = (allApps ?? []).filter(a => {
+    const aid = a.client_id ?? a.clientId;
+    if (aid != null && c?.id != null) return String(aid) === String(c.id);
+    return (a.client_name ?? a.clientName) === c.name;
+  });
   const tags = c.tags ?? [];
 
   return (
