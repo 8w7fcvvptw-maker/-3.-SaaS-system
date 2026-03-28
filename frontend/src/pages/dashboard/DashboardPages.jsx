@@ -18,7 +18,7 @@ import {
   getClients, getClientById, createClient, updateClient,
   getServices, getServiceById,
   getStaff, getStaffById, createStaff,
-  getAppointmentsByStaff, getAppointmentsByClient,
+  getAppointmentsByStaff, getAppointmentsForClient,
   getBusiness, updateBusiness, updateService, createService, deleteService,
   createAppointment, updateAppointment, updateAppointmentStatus,
   getRevenueData,
@@ -206,6 +206,7 @@ export function AppointmentEditor() {
   const { data: business } = useAsync(() => getBusiness());
   const { data: services } = useAsync(() => getServices());
   const { data: staffList } = useAsync(() => getStaff());
+  const { data: clientsList } = useAsync(() => getClients());
   const [form, setForm] = useState({
     client_name: "",
     client_phone: "",
@@ -245,13 +246,15 @@ export function AppointmentEditor() {
 
     setSaving(true);
     try {
+      const phoneNorm = normalizePhone(form.client_phone.trim());
+      const matchedClient = (clientsList ?? []).find(
+        (cl) => normalizePhone(cl.phone ?? "") === phoneNorm
+      );
       const data = {
         client_name: form.client_name.trim(),
         client_phone: form.client_phone.trim(),
         service_id: selectedService?.id != null ? Number(selectedService.id) : null,
-        service: selectedService?.name ?? "",
         staff_id: form.staff_id ? Number(form.staff_id) : null,
-        staff_name: staffArr.find(s => String(s.id) === form.staff_id)?.name ?? "",
         date: form.date,
         time: form.time,
         duration: selectedService?.duration ?? 30,
@@ -259,6 +262,7 @@ export function AppointmentEditor() {
         status: "pending",
         notes: form.notes?.trim() || null,
       };
+      if (matchedClient?.id != null) data.client_id = Number(matchedClient.id);
       if (business?.id) data.business_id = business.id;
       await createAppointment(data);
       navigate("/appointments");
@@ -392,13 +396,23 @@ export function AppointmentsList() {
       />
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        {["all", "confirmed", "pending", "completed", "cancelled"].map(s => (
+        {["all", "confirmed", "pending", "completed", "cancelled", "no-show"].map(s => (
           <button
             key={s}
             onClick={() => setFilter(s)}
             className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filter === s ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600"}`}
           >
-            {s === "all" ? "Все" : s === "confirmed" ? "Подтверждено" : s === "pending" ? "Ожидает" : s === "completed" ? "Завершено" : "Отменено"}
+            {s === "all"
+              ? "Все"
+              : s === "confirmed"
+                ? "Подтверждено"
+                : s === "pending"
+                  ? "Ожидает"
+                  : s === "completed"
+                    ? "Завершено"
+                    : s === "cancelled"
+                      ? "Отменено"
+                      : "Не пришёл"}
           </button>
         ))}
       </div>
@@ -692,7 +706,7 @@ const EMPTY_CLIENT = { name: "", phone: "", email: "", notes: "" };
 
 export function ClientEditor() {
   const navigate = useNavigate();
-  const { data: business, loading: bizLoading } = useAsync(() => getBusiness());
+  const { data: business } = useAsync(() => getBusiness());
   const [form, setForm] = useState({ ...EMPTY_CLIENT });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
@@ -776,8 +790,18 @@ export function ClientEditor() {
 export function ClientProfile() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { data: c, loading: cLoading, error: cError, execute: reload } = useAsync(() => getClientById(id));
-  const { data: allApps, loading: appsLoading, error: appsError } = useAsync(() => getAppointments());
+  const { data: bundle, loading, error, execute: reload } = useAsync(
+    async () => {
+      const client = await getClientById(id);
+      if (!client) return { client: null, apps: [] };
+      const apps = await getAppointmentsForClient(client.id, client.name);
+      return { client, apps };
+    },
+    true,
+    [id]
+  );
+  const c = bundle?.client;
+  const clientApps = bundle?.apps ?? [];
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
 
@@ -797,14 +821,9 @@ export function ClientProfile() {
     }
   };
 
-  const loading = cLoading || appsLoading;
-  const error   = cError || appsError;
-
   if (loading) return <LoadingState />;
   if (error)   return <ErrorState message={error.message} />;
   if (!c)      return <EmptyState icon="👤" title="Клиент не найден" description="" />;
-
-  const clientApps = (allApps ?? []).filter(a => (a.client_name ?? a.clientName) === c.name);
   const tags = c.tags ?? [];
 
   return (
@@ -1395,7 +1414,10 @@ export function MessagesPage() {
 
   return (
     <div>
-      <PageHeader title="Уведомления" subtitle="Настройка шаблонов и логи отправки" />
+      <PageHeader
+        title="Уведомления"
+        subtitle="Демо: шаблоны только в браузере; логи — последние записи (не факт отправки SMS/Email)"
+      />
 
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -1423,7 +1445,7 @@ export function MessagesPage() {
         </div>
 
         <div>
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Последние уведомления</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Недавние записи (пример лога)</h3>
           {loading ? <LoadingState /> : error ? <ErrorState message={error.message} /> : (
             <Card>
               <div className="divide-y divide-gray-50 dark:divide-zinc-700">
@@ -1431,9 +1453,9 @@ export function MessagesPage() {
                   <div key={a.id} className="px-4 py-3 text-sm">
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="font-medium text-gray-900 dark:text-white">{a.client_name ?? a.clientName}</span>
-                      <Badge color="green">Отправлено</Badge>
+                      <Badge color="gray">Запись</Badge>
                     </div>
-                    <div className="text-gray-400 text-xs">Подтверждение записи · {a.date} {a.time}</div>
+                    <div className="text-gray-400 text-xs">Можно связать с реальной очередью уведомлений позже · {a.date} {a.time}</div>
                   </div>
                 ))}
               </div>

@@ -3,6 +3,8 @@
 // Поддерживают светлую и тёмную тему
 // ============================================
 
+import { formatLoadErrorMessage } from "../lib/formatLoadErrorMessage";
+
 // Кнопка с вариантами стиля
 export function Button({ children, variant = "primary", size = "md", onClick, className = "", disabled = false, type = "button" }) {
   const base = "inline-flex items-center gap-2 font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
@@ -167,14 +169,16 @@ export function LoadingState({ text = "Загрузка..." }) {
 
 // Состояние ошибки
 export function ErrorState({ title = "Ошибка загрузки", description, message, onRetry }) {
+  const raw = description ?? message;
+  const displayText = raw != null && raw !== "" ? formatLoadErrorMessage(raw) : null;
   return (
     <Card className="p-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
       <div className="flex items-start gap-4">
         <div className="text-2xl">⚠️</div>
         <div className="flex-1">
           <h3 className="font-semibold text-red-800 dark:text-red-400">{title}</h3>
-          {(description || message) && (
-            <p className="text-sm text-red-700 dark:text-red-300 mt-1">{description ?? message}</p>
+          {displayText && (
+            <p className="text-sm text-red-700 dark:text-red-300 mt-1 whitespace-pre-line">{displayText}</p>
           )}
           {onRetry && (
             <Button 

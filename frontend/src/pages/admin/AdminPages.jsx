@@ -45,10 +45,10 @@ export function AdminDashboard() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
         {[
-          ["Всего бизнесов", businesses.length, "text-emerald-400", "+2 за месяц"],
+          ["Всего бизнесов", businesses.length, "text-gray-500", "По данным admin_businesses"],
           ["Активных", activeCount, "text-gray-500", `из ${businesses.length}`],
           ["Платных тарифов", paidCount, "text-teal-400", "Pro + Enterprise"],
-          ["Месячный доход", `${totalRevenue.toLocaleString()} ₽`, "text-emerald-400", "+18% к прошлому месяцу"],
+          ["Месячный доход", `${totalRevenue.toLocaleString()} ₽`, "text-gray-500", "Сумма поля revenue"],
         ].map(([label, value, trendColor, trendText]) => (
           <div key={label} className="bg-gray-800 border border-gray-700 rounded-xl p-5">
             <div className="text-gray-400 text-sm mb-2">{label}</div>
@@ -195,7 +195,6 @@ export function AdminPlans() {
   const [localPlans, setLocalPlans] = useState(null);
 
   const loading = bizLoading || plansLoading;
-  const error = bizError ?? plansError;
 
   const plansFromApi = plansData && plansData.length > 0;
   const plans = plansFromApi
@@ -203,7 +202,10 @@ export function AdminPlans() {
     : (localPlans ?? INITIAL_PLANS.map(p => ({ ...p, id: null })));
 
   if (loading) return <LoadingState />;
-  if (bizError) return <ErrorState message={bizError.message} />;
+  if (bizError ?? plansError) {
+    const err = bizError ?? plansError;
+    return <ErrorState message={err.message} />;
+  }
 
   const businesses = businessesData ?? [];
   const plansWithCount = plans.map(p => ({

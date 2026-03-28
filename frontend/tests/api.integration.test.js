@@ -165,19 +165,19 @@ describe('4. Записи (Appointments)', () => {
     }
     const svc = services[0];
     const st = staff[0];
-    const newApp = await api.createAppointment({
+    const appPayload = {
       client_name: 'Тест Клиент Записи',
       client_phone: '+7 (999) 222-22-22',
       service_id: svc.id,
-      service: svc.name,
       staff_id: st.id,
-      staff_name: st.name,
       date: new Date().toISOString().slice(0, 10),
       time: '10:00',
       duration: svc.duration ?? 30,
       price: svc.price ?? 500,
       status: 'pending',
-    });
+    };
+    if (hasBusiness) appPayload.business_id = businessId;
+    const newApp = await api.createAppointment(appPayload);
     expect(newApp).toBeDefined();
     expect(newApp.id).toBeDefined();
     createdAppointmentId = newApp.id;
