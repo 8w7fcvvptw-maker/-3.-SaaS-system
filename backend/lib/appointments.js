@@ -1,11 +1,12 @@
 import { throwOnError } from './helpers';
 import { supabase } from './supabase';
 
-/** Вложенный select: имена услуги и мастера из связанных таблиц (нужны FK в Supabase). */
+/** Вложенный select: услуга, мастер, клиент (нужны FK в Supabase; иначе откат на '*'). */
 const APPOINTMENT_REL_SELECT = `
   *,
   services ( id, name ),
-  staff ( id, name )
+  staff ( id, name ),
+  clients ( id, name, phone, email )
 `;
 
 function isMissingRelationshipError(err) {
@@ -17,10 +18,6 @@ function isMissingRelationshipError(err) {
   );
 }
 
-/**
- * Выполняет select с вложенными таблицами; при отсутствии FK в проекте — повтор с '*'.
- * @param {(sel: string) => Promise<{ data: unknown; error: unknown }>} run
- */
 async function withRelFallback(run) {
   let res = await run(APPOINTMENT_REL_SELECT);
   if (!res.error) return res;
@@ -30,20 +27,76 @@ async function withRelFallback(run) {
   return res;
 }
 
-/** Приводит строку PostgREST к плоскому виду для UI (service, staff_name). */
+/** Найти или создать клиента по business_id + телефону для client_id в записи. */
+async function resolveClientId({ business_id, client_phone, client_name, client_email }) {
+  if (!business_id || !client_phone) return null;
+
+  const found = await supabase
+    .from('clients')
+    .select('id')
+    .eq('business_id', business_id)
+    .eq('phone', client_phone)
+    .limit(1);
+
+  if (!found.error && Array.isArray(found.data) && found.data[0]?.id != null) {
+    return found.data[0].id;
+  }
+
+  const insertData = {
+    business_id,
+    name: client_name || 'Клиент',
+    phone: client_phone,
+    email: client_email || null,
+    total_visits: 0,
+    total_spent: 0,
+    tags: [],
+    notes: null,
+  };
+
+  let created = await supabase.from('clients').insert(insertData).select('id').single();
+  if (created.error) {
+    created = await supabase
+      .from('clients')
+      .insert({
+        business_id,
+        name: insertData.name,
+        phone: insertData.phone,
+        email: insertData.email,
+      })
+      .select('id')
+      .single();
+  }
+
+  if (created.error) return null;
+  return created.data?.id ?? null;
+}
+
+/** Плоская строка для UI (service, staff_name, поля клиента из join или колонок). */
 export function mapAppointmentRow(row) {
   if (!row || typeof row !== 'object') return row;
   const svc = row.services;
   const stf = row.staff;
-  const { services: _s, staff: _st, ...rest } = row;
+  const cli = row.clients;
+  const { services: _s, staff: _st, clients: _c, ...rest } = row;
+
   const serviceName =
     svc && typeof svc === 'object' && svc.name != null ? svc.name : rest.service ?? null;
   const staffName =
     stf && typeof stf === 'object' && stf.name != null ? stf.name : rest.staff_name ?? null;
+  const clientName =
+    cli && typeof cli === 'object' && cli.name != null ? cli.name : rest.client_name ?? null;
+  const clientPhone =
+    cli && typeof cli === 'object' && cli.phone != null ? cli.phone : rest.client_phone ?? null;
+  const clientEmail =
+    cli && typeof cli === 'object' && cli.email != null ? cli.email : rest.client_email ?? null;
+
   return {
     ...rest,
     service: serviceName,
     staff_name: staffName,
+    client_name: clientName,
+    client_phone: clientPhone,
+    client_email: clientEmail,
   };
 }
 
@@ -86,7 +139,7 @@ export async function getAppointmentsByClient(clientName) {
   return mapAppointmentRows(throwOnError(res));
 }
 
-/** Записи клиента: сначала по client_id, иначе по имени (старые данные). */
+/** Сначала по client_id, иначе по имени (старые данные). */
 export async function getAppointmentsForClient(clientId, clientName) {
   const r1 = await withRelFallback((sel) =>
     supabase.from('appointments').select(sel).eq('client_id', clientId).order('date').order('time')
@@ -136,6 +189,16 @@ export async function createAppointment(data) {
   for (const k of APPOINTMENT_INSERT_COLS) {
     if (data[k] !== undefined) insertData[k] = data[k];
   }
+
+  if (insertData.client_id == null) {
+    try {
+      const cid = await resolveClientId(insertData);
+      if (cid != null) insertData.client_id = cid;
+    } catch {
+      // запись возможна и без client_id
+    }
+  }
+
   const res = await withRelFallback((sel) =>
     supabase.from('appointments').insert(insertData).select(sel).single()
   );

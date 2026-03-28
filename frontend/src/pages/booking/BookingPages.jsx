@@ -369,7 +369,7 @@ export function BookingConfirm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
-  const { service, staff, date, time, clientName, clientPhone, notes } = booking;
+  const { service, staff, date, time, clientName, clientPhone, clientEmail, notes } = booking;
   const duration = service?.duration ?? 30;
   const price = service?.price ?? 0;
   const dateStr = date ? new Date(date + "T12:00:00").toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
@@ -387,6 +387,7 @@ export function BookingConfirm() {
       await createAppointment({
         client_name: clientName || "Клиент",
         client_phone: clientPhone || "",
+        client_email: clientEmail || "",
         service_id: service?.id,
         staff_id: staff?.id ?? null,
         date: date || new Date().toISOString().slice(0, 10),
