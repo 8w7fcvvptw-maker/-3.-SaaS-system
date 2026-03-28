@@ -1,16 +1,10 @@
 // ============================================
-// ГЛАВНЫЙ ФАЙЛ ПРИЛОЖЕНИЯ
-// Здесь настроен роутинг — все URL и страницы
+// ГЛАВНЫЙ ФАЙЛ ПРИЛОЖЕНИЯ — роутинг
 // ============================================
 
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-// Context
-import { BookingProvider } from "./context/BookingContext";
-
-// Layouts
-import DashboardLayout from "./layouts/DashboardLayout";
-import AdminLayout from "./layouts/AdminLayout";
+import { AuthApiBridge } from "./components/AuthApiBridge.jsx";
 
 // Страницы записи (публичная зона)
 import {
@@ -23,7 +17,10 @@ import {
   BookingSuccess,
 } from "./pages/booking/BookingPages";
 
-// Страницы кабинета бизнеса
+import BookingFlowLayout from "./layouts/BookingFlowLayout.jsx";
+
+import DashboardShell from "./layouts/DashboardShell.jsx";
+
 import {
   Dashboard,
   CalendarPage,
@@ -43,112 +40,160 @@ import {
   SettingsPage,
 } from "./pages/dashboard/DashboardPages";
 
-// Admin SaaS страницы
-import {
-  AdminDashboard,
-  AdminBusinesses,
-  AdminPlans,
-} from "./pages/admin/AdminPages";
+import { LoginPage, RegisterPage, OnboardingPage } from "./pages/auth/AuthPages.jsx";
 
 export default function App() {
   return (
     <BrowserRouter>
+      <AuthApiBridge />
       <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
 
-        {/* ---- Публичная зона (BookingProvider общий для потока записи) ---- */}
-        <Route path="/book/:slug" element={<BookingLanding />} />
-        <Route path="/book" element={<BookingProvider><Outlet /></BookingProvider>}>
+        <Route path="/book/:slug" element={<BookingFlowLayout />}>
+          <Route index element={<BookingLanding />} />
           <Route path="services" element={<ServiceSelection />} />
-          <Route path="staff"    element={<StaffSelection />} />
+          <Route path="staff" element={<StaffSelection />} />
           <Route path="calendar" element={<DateTimeSelection />} />
-          <Route path="details"  element={<ClientDetails />} />
-          <Route path="confirm"  element={<BookingConfirm />} />
-          <Route path="success"  element={<BookingSuccess />} />
+          <Route path="details" element={<ClientDetails />} />
+          <Route path="confirm" element={<BookingConfirm />} />
+          <Route path="success" element={<BookingSuccess />} />
         </Route>
 
-        {/* ---- Кабинет бизнеса (обёрнут в DashboardLayout) ---- */}
         <Route
           path="/dashboard"
-          element={<DashboardLayout><Dashboard /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <Dashboard />
+            </DashboardShell>
+          }
         />
         <Route
           path="/calendar"
-          element={<DashboardLayout><CalendarPage /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <CalendarPage />
+            </DashboardShell>
+          }
         />
         <Route
           path="/appointments"
-          element={<DashboardLayout><AppointmentsList /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <AppointmentsList />
+            </DashboardShell>
+          }
         />
         <Route
           path="/appointments/new"
-          element={<DashboardLayout><AppointmentEditor /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <AppointmentEditor />
+            </DashboardShell>
+          }
         />
         <Route
           path="/appointments/:id"
-          element={<DashboardLayout><AppointmentDetail /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <AppointmentDetail />
+            </DashboardShell>
+          }
         />
         <Route
           path="/clients"
-          element={<DashboardLayout><ClientsPage /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <ClientsPage />
+            </DashboardShell>
+          }
         />
         <Route
           path="/clients/new"
-          element={<DashboardLayout><ClientEditor /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <ClientEditor />
+            </DashboardShell>
+          }
         />
         <Route
           path="/clients/:id"
-          element={<DashboardLayout><ClientProfile /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <ClientProfile />
+            </DashboardShell>
+          }
         />
         <Route
           path="/services"
-          element={<DashboardLayout><ServicesPage /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <ServicesPage />
+            </DashboardShell>
+          }
         />
         <Route
           path="/services/:id"
-          element={<DashboardLayout><ServiceEditor /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <ServiceEditor />
+            </DashboardShell>
+          }
         />
         <Route
           path="/staff"
-          element={<DashboardLayout><StaffPage /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <StaffPage />
+            </DashboardShell>
+          }
         />
         <Route
           path="/staff/new"
-          element={<DashboardLayout><StaffEditor /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <StaffEditor />
+            </DashboardShell>
+          }
         />
         <Route
           path="/staff/:id"
-          element={<DashboardLayout><StaffProfile /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <StaffProfile />
+            </DashboardShell>
+          }
         />
         <Route
           path="/messages"
-          element={<DashboardLayout><MessagesPage /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <MessagesPage />
+            </DashboardShell>
+          }
         />
         <Route
           path="/analytics"
-          element={<DashboardLayout><AnalyticsPage /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <AnalyticsPage />
+            </DashboardShell>
+          }
         />
         <Route
           path="/settings"
-          element={<DashboardLayout><SettingsPage /></DashboardLayout>}
+          element={
+            <DashboardShell>
+              <SettingsPage />
+            </DashboardShell>
+          }
         />
 
-        {/* ---- Admin SaaS (обёрнут в AdminLayout) ---- */}
-        <Route
-          path="/admin"
-          element={<AdminLayout><AdminDashboard /></AdminLayout>}
-        />
-        <Route
-          path="/admin/businesses"
-          element={<AdminLayout><AdminBusinesses /></AdminLayout>}
-        />
-        <Route
-          path="/admin/plans"
-          element={<AdminLayout><AdminPlans /></AdminLayout>}
-        />
+        <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/admin/*" element={<Navigate to="/dashboard" replace />} />
 
-        {/* По умолчанию — редирект на дашборд */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
-
       </Routes>
     </BrowserRouter>
   );

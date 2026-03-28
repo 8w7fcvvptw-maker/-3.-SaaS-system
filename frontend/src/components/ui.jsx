@@ -60,10 +60,10 @@ export function StatusBadge({ status }) {
 }
 
 // Аватар с инициалами
-export function Avatar({ initials, size = "md" }) {
+export function Avatar({ initials, size = "md", className = "" }) {
   const sizes = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-14 h-14 text-lg" };
   return (
-    <div className={`${sizes[size]} bg-gray-100 text-gray-700 dark:bg-zinc-700 dark:text-gray-300 rounded-full flex items-center justify-center font-semibold shrink-0`}>
+    <div className={`${sizes[size]} bg-gray-100 text-gray-700 dark:bg-zinc-700 dark:text-gray-300 rounded-full flex items-center justify-center font-semibold shrink-0 ${className}`}>
       {initials}
     </div>
   );
@@ -87,14 +87,23 @@ export function KpiCard({ label, value, icon, trend, color = "violet" }) {
     red:     "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400",
     teal:    "bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400",
   };
+  const trendTone = {
+    violet:  "text-indigo-600/90 dark:text-indigo-400/90",
+    green:   "text-emerald-600/90 dark:text-emerald-400/90",
+    yellow:  "text-amber-700/90 dark:text-amber-400/90",
+    red:     "text-red-600/90 dark:text-red-400/90",
+    teal:    "text-teal-600/90 dark:text-teal-400/90",
+  };
   return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm text-gray-500 dark:text-gray-400">{label}</span>
-        <span className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg ${colors[color] || colors.violet}`}>{icon}</span>
+    <Card className="p-5 h-full min-h-[132px] flex flex-col">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <span className="text-sm text-gray-500 dark:text-gray-400 leading-snug flex-1 min-w-0">{label}</span>
+        <span className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-lg leading-none ${colors[color] || colors.violet}`}>{icon}</span>
       </div>
-      <div className="text-2xl font-bold text-gray-900 dark:text-white">{value}</div>
-      {trend && <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">{trend}</div>}
+      <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums tracking-tight mt-auto">{value}</div>
+      {trend && (
+        <div className={`text-xs mt-1 leading-snug ${trendTone[color] || trendTone.violet}`}>{trend}</div>
+      )}
     </Card>
   );
 }
@@ -104,7 +113,7 @@ export function StarRating({ rating }) {
   return (
     <span className="flex items-center gap-1 text-sm">
       <span className="text-yellow-400">★</span>
-      <span className="font-medium text-gray-700 dark:text-gray-300">{rating}</span>
+      <span className="font-medium text-gray-700 dark:text-zinc-300">{rating}</span>
     </span>
   );
 }
@@ -159,10 +168,33 @@ export function LoadingState({ text = "Загрузка..." }) {
     <div className="text-center py-12">
       <div className="flex justify-center mb-4">
         <div className="animate-spin">
-          <div className="w-8 h-8 border-4 border-gray-200 dark:border-zinc-600 border-t-indigo-600 rounded-full"></div>
+          <div className="w-8 h-8 border-4 border-gray-200 dark:border-zinc-600 border-t-violet-600 dark:border-t-violet-400 rounded-full"></div>
         </div>
       </div>
       <p className="text-sm text-gray-600 dark:text-gray-400">{text}</p>
+    </div>
+  );
+}
+
+/** Компактное сообщение об ошибке действия (сохранение, удаление) — вместо alert */
+export function ActionErrorBanner({ message, onDismiss, className = "" }) {
+  if (message == null || message === "") return null;
+  const displayText = formatLoadErrorMessage(String(message));
+  return (
+    <div
+      role="alert"
+      className={`rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 px-3 py-2 text-sm text-red-800 dark:text-red-300 flex items-start justify-between gap-2 ${className}`}
+    >
+      <span className="whitespace-pre-line flex-1">{displayText}</span>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="shrink-0 text-red-600 dark:text-red-400 hover:underline text-xs"
+        >
+          Закрыть
+        </button>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@
 --   supabase-relations-migration.sql (внешние ключи).
 --
 -- Требования:
+--   • В таблице businesses есть колонка slug (см. supabase-rls-auth-migration.sql).
 --   • В Supabase уже есть хотя бы один пользователь:
 --     Authentication → Users (иначе нельзя заполнить businesses.user_id).
 --
@@ -44,6 +45,7 @@ BEGIN
   IF bid IS NULL THEN
     INSERT INTO public.businesses (
       user_id,
+      slug,
       name,
       description,
       address,
@@ -56,6 +58,7 @@ BEGIN
     )
     VALUES (
       uid,
+      'barbershop',
       'SEED Демо-салон',
       'Тестовые данные: услуги, мастера, клиенты и записи со связями.',
       'г. Москва, ул. Сидовая, д. 1',

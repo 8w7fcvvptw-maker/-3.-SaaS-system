@@ -10,4 +10,20 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+/**
+ * Один браузерный клиент: JWT и refresh делает Supabase Auth.
+ * Сессия в localStorage (persistSession), без своего bcrypt/JWT на сервере.
+ */
+const browserStorage =
+  typeof globalThis !== 'undefined' && globalThis.localStorage
+    ? globalThis.localStorage
+    : undefined;
+
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: browserStorage,
+  },
+});

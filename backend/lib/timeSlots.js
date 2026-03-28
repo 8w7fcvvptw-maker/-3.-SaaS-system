@@ -1,28 +1,75 @@
-import { supabase } from './supabase';
+import { supabase } from './supabase.js';
+import { getOwnerBusinessId } from './business.js';
+import { ApiError } from './errors.js';
+import { assertDateIso, assertId } from './validation.js';
 
 const DEFAULT_SLOTS = Array.from({ length: 49 }, (_, i) => {
   const h = 9 + Math.floor((i * 15) / 60);
   const m = (i * 15) % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 });
 
-/** Получить все временные слоты; если таблицы нет или пуста — вернуть дефолтные */
 export async function getTimeSlots() {
   const { data, error } = await supabase.from('time_slots').select('slot').order('slot');
   if (error) return DEFAULT_SLOTS;
-  const slots = (data ?? []).map(r => r.slot);
+  const slots = (data ?? []).map((r) => r.slot);
   return slots.length > 0 ? slots : DEFAULT_SLOTS;
 }
 
-/** Занятые слоты на дату + мастера */
-export async function getBusySlots(date, staffId) {
+/**
+ * Занятые слоты на дату (и опционально мастера).
+ * @param {string} date — YYYY-MM-DD
+ * @param {number|null|undefined} staffId
+ * @param {number|null|undefined} businessId — для публичной записи; иначе RLS отфильтрует в кабинете
+ */
+export async function getBusySlots(date, staffId, businessId) {
   if (!date) return [];
-  const query = supabase.from('appointments')
+  assertDateIso(date, 'date');
+
+  if (businessId != null) {
+    const bid = assertId(Number(businessId), 'business_id');
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess?.session) {
+      return [];
+    }
+    const ownerBid = await getOwnerBusinessId();
+    if (bid !== ownerBid) {
+      throw new ApiError('Нет доступа к указанному салону', {
+        field: 'business_id',
+        code: 'forbidden',
+        status: 403,
+      });
+    }
+    const { data, error } = await supabase.rpc('get_busy_slot_times', {
+      p_business_id: bid,
+      p_date: date,
+      p_staff_id: staffId != null ? assertId(Number(staffId), 'staff_id') : null,
+    });
+    if (!error && data != null) {
+      return data.map((r) => r.slot_time ?? r.time).filter(Boolean);
+    }
+    const query = supabase
+      .from('appointments')
+      .select('time')
+      .eq('business_id', bid)
+      .eq('date', date)
+      .not('status', 'eq', 'cancelled');
+    const q = staffId != null ? query.eq('staff_id', assertId(Number(staffId), 'staff_id')) : query;
+    const { data: rows, error: e2 } = await q;
+    if (e2) return [];
+    return (rows ?? []).map((r) => r.time);
+  }
+
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess?.session) return [];
+
+  const query = supabase
+    .from('appointments')
     .select('time')
     .eq('date', date)
     .not('status', 'eq', 'cancelled');
-  const q = staffId ? query.eq('staff_id', staffId) : query;
+  const q = staffId != null ? query.eq('staff_id', assertId(Number(staffId), 'staff_id')) : query;
   const { data, error } = await q;
-  if (error) throw error;
-  return (data ?? []).map(r => r.time);
+  if (error) return [];
+  return (data ?? []).map((r) => r.time);
 }

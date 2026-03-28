@@ -2,7 +2,7 @@ import { createContext, useContext, useState } from "react";
 
 const BookingContext = createContext(null);
 
-export function BookingProvider({ children }) {
+export function BookingProvider({ children, business = null, slug = "" }) {
   const [booking, setBooking] = useState({
     service: null,
     staff: null,
@@ -32,7 +32,16 @@ export function BookingProvider({ children }) {
   };
 
   return (
-    <BookingContext.Provider value={{ booking, updateBooking, resetBooking }}>
+    <BookingContext.Provider
+      value={{
+        booking,
+        business,
+        businessId: business?.id ?? null,
+        slug: slug || "",
+        updateBooking,
+        resetBooking,
+      }}
+    >
       {children}
     </BookingContext.Provider>
   );

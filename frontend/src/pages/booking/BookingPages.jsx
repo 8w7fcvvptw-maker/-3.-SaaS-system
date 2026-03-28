@@ -4,28 +4,104 @@
 // ============================================
 
 import { useState } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import BookingLayout from "../../layouts/BookingLayout";
-import { Button, Card, StarRating, Avatar, StatusBadge, LoadingState, ErrorState } from "../../components/ui";
+import { Button, Card, StarRating, Avatar, LoadingState, ErrorState } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
 import { useBooking } from "../../context/BookingContext";
-import { getBusiness, getActiveServices, getStaff, getTimeSlots, getBusySlots, createAppointment } from "../../lib/api";
+import { getActiveServices, getStaff, getTimeSlots, getBusySlots, createAppointment } from "../../lib/api";
 import { normalizePhone } from "../../lib/phoneUtils";
+
+function escapeIcsText(value) {
+  if (value == null || value === "") return "";
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "");
+}
+
+/** Локальное время без Z (плавающее) — календарь клиента интерпретирует как местное. */
+function dateToIcsLocal(dt) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  const h = String(dt.getHours()).padStart(2, "0");
+  const min = String(dt.getMinutes()).padStart(2, "0");
+  const s = String(dt.getSeconds()).padStart(2, "0");
+  return `${y}${m}${d}T${h}${min}${s}`;
+}
+
+/** Собирает .ics для одной записи; возвращает строку или null при невалидных данных. */
+function buildBookingIcs({ date, time, serviceName, staffName, businessName, address, phone, price, durationMin, slug, origin }) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date).slice(0, 10))) return null;
+  const t = String(time || "09:00").trim();
+  const [th, tm] = t.split(":").map((x) => parseInt(x, 10));
+  const h = Number.isFinite(th) ? th : 9;
+  const min = Number.isFinite(tm) ? tm : 0;
+  const [y, mo, d] = String(date).slice(0, 10).split("-").map((x) => parseInt(x, 10));
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+
+  const start = new Date(y, mo - 1, d, h, min, 0);
+  const dur = Math.max(15, Math.min(Number(durationMin) || 60, 24 * 60));
+  const end = new Date(start.getTime() + dur * 60 * 1000);
+
+  const title = escapeIcsText(`${serviceName || "Запись"}${businessName ? ` — ${businessName}` : ""}`);
+  const lines = [
+    `Мастер: ${staffName || "—"}`,
+    phone ? `Телефон: ${phone}` : null,
+    price != null ? `Сумма: ${Number(price).toLocaleString("ru-RU")} ₽` : null,
+    slug && origin ? `Запись: ${origin}/book/${slug}` : null,
+  ].filter(Boolean);
+  const desc = escapeIcsText(lines.join("\n"));
+  const loc = escapeIcsText(address || "");
+
+  const uid = `${Date.now()}-${slug || "book"}@saas-booking`;
+  const utcStamp = `${new Date().toISOString().slice(0, 19).replace(/[-:]/g, "")}Z`;
+
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//SaaS Booking//RU",
+    "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${utcStamp}`,
+    `DTSTART:${dateToIcsLocal(start)}`,
+    `DTEND:${dateToIcsLocal(end)}`,
+    `SUMMARY:${title}`,
+    desc ? `DESCRIPTION:${desc}` : null,
+    loc ? `LOCATION:${loc}` : null,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ]
+    .filter(Boolean)
+    .join("\r\n");
+
+  return ics;
+}
 
 // ── 1. Лендинг бизнеса (/book/:slug) ──────────────────────────
 export function BookingLanding() {
   const navigate = useNavigate();
-  const { slug } = useParams();
+  const { business, businessId, slug } = useBooking();
 
-  const { data: business,  loading: bizLoading,    error: bizError }    = useAsync(() => getBusiness(slug));
-  const { data: services,  loading: svcLoading }                        = useAsync(() => getActiveServices());
-  const { data: staffList, loading: staffLoading }                      = useAsync(() => getStaff());
+  const { data: services, loading: svcLoading } = useAsync(
+    () => getActiveServices(businessId),
+    true,
+    [businessId]
+  );
+  const { data: staffList, loading: staffLoading } = useAsync(
+    () => getStaff(businessId),
+    true,
+    [businessId]
+  );
 
-  const loading = bizLoading || svcLoading || staffLoading;
+  const loading = svcLoading || staffLoading;
   if (loading) return <BookingLayout><LoadingState /></BookingLayout>;
-  if (bizError) return <BookingLayout><ErrorState message={bizError.message} /></BookingLayout>;
 
-  const biz   = business   ?? {};
+  const biz = business ?? {};
   const svcs  = (services  ?? []).slice(0, 4);
   const staff = staffList  ?? [];
 
@@ -34,17 +110,17 @@ export function BookingLanding() {
       <div className="space-y-6">
         <Card className="p-6">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 bg-violet-100 rounded-xl flex items-center justify-center text-3xl">
+            <div className="w-16 h-16 bg-violet-100 dark:bg-violet-900/40 rounded-xl flex items-center justify-center text-3xl">
               {biz.logo ?? "🏢"}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-xl font-bold text-gray-900">{biz.name}</h1>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">{biz.name}</h1>
                 <StarRating rating={biz.rating ?? 0} />
-                <span className="text-xs text-gray-400">({biz.reviews ?? 0} отзывов)</span>
+                <span className="text-xs text-gray-400 dark:text-zinc-500">({biz.reviews ?? 0} отзывов)</span>
               </div>
-              <p className="text-sm text-gray-600 mb-3">{biz.description}</p>
-              <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+              <p className="text-sm text-gray-600 dark:text-zinc-400 mb-3">{biz.description}</p>
+              <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-zinc-400">
                 <span>📍 {biz.address}</span>
                 <span>📞 {biz.phone}</span>
                 <span>🕐 {biz.hours}</span>
@@ -54,38 +130,38 @@ export function BookingLanding() {
         </Card>
 
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Доступные услуги</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Доступные услуги</h2>
           <div className="space-y-2">
             {svcs.map(s => (
               <Card key={s.id} className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s.color }} />
                   <div>
-                    <div className="font-medium text-gray-900 text-sm">{s.name}</div>
-                    <div className="text-xs text-gray-500">{s.duration} мин</div>
+                    <div className="font-medium text-gray-900 dark:text-white text-sm">{s.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-zinc-400">{s.duration} мин</div>
                   </div>
                 </div>
-                <div className="font-semibold text-violet-600">{(s.price ?? 0).toLocaleString()} ₽</div>
+                <div className="font-semibold text-violet-600 dark:text-violet-400">{(s.price ?? 0).toLocaleString()} ₽</div>
               </Card>
             ))}
           </div>
         </div>
 
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Наши мастера</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Наши мастера</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {staff.map(s => (
               <Card key={s.id} className="p-4 text-center">
                 <Avatar initials={s.avatar ?? s.name.split(" ").map(w => w[0]).join("")} size="lg" className="mx-auto mb-2" />
-                <div className="font-medium text-sm text-gray-900">{s.name.split(" ")[0]}</div>
-                <div className="text-xs text-gray-500">{s.role}</div>
+                <div className="font-medium text-sm text-gray-900 dark:text-white">{s.name.split(" ")[0]}</div>
+                <div className="text-xs text-gray-500 dark:text-zinc-400">{s.role}</div>
                 <StarRating rating={s.rating ?? 0} />
               </Card>
             ))}
           </div>
         </div>
 
-        <Button size="lg" className="w-full justify-center" onClick={() => navigate("/book/services")}>
+        <Button size="lg" className="w-full justify-center" onClick={() => navigate(`/book/${slug}/services`)}>
           Записаться →
         </Button>
       </div>
@@ -96,9 +172,13 @@ export function BookingLanding() {
 // ── 2. Выбор услуги (/book/services) ──────────────────────────
 export function ServiceSelection() {
   const navigate = useNavigate();
-  const { updateBooking } = useBooking();
+  const { updateBooking, businessId, slug } = useBooking();
   const [activeCategory, setActiveCategory] = useState("Все");
-  const { data, loading, error } = useAsync(() => getActiveServices());
+  const { data, loading, error } = useAsync(
+    () => getActiveServices(businessId),
+    true,
+    [businessId]
+  );
 
   if (loading) return <BookingLayout currentStep={0}><LoadingState /></BookingLayout>;
   if (error)   return <BookingLayout currentStep={0}><ErrorState message={error.message} /></BookingLayout>;
@@ -109,12 +189,12 @@ export function ServiceSelection() {
 
   const selectService = (s) => {
     updateBooking({ service: s });
-    navigate("/book/staff");
+    navigate(`/book/${slug}/staff`);
   };
 
   return (
     <BookingLayout currentStep={0}>
-      <h2 className="text-xl font-bold text-gray-900 mb-4">Выберите услугу</h2>
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Выберите услугу</h2>
 
       <div className="flex flex-wrap gap-2 mb-5">
         {categories.map(c => (
@@ -122,7 +202,9 @@ export function ServiceSelection() {
             key={c}
             onClick={() => setActiveCategory(c)}
             className={`px-3 py-1.5 rounded-full text-sm transition-colors cursor-pointer ${
-              activeCategory === c ? "bg-violet-600 text-white" : "bg-white text-gray-600 border border-gray-300 hover:border-violet-300"
+              activeCategory === c
+                ? "bg-violet-600 text-white dark:bg-violet-500"
+                : "bg-white dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 border border-gray-300 dark:border-zinc-600 hover:border-violet-400 dark:hover:border-violet-500"
             }`}
           >
             {c}
@@ -134,20 +216,20 @@ export function ServiceSelection() {
         {filtered.map(s => (
           <Card
             key={s.id}
-            className="p-4 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all border border-transparent"
+            className="p-4 cursor-pointer hover:border-violet-300 dark:hover:border-violet-600 hover:shadow-md transition-all border border-transparent dark:border-zinc-700"
             onClick={() => selectService(s)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded-full" style={{ backgroundColor: s.color }} />
                 <div>
-                  <div className="font-semibold text-gray-900">{s.name}</div>
-                  <div className="text-sm text-gray-500">{s.description}</div>
+                  <div className="font-semibold text-gray-900 dark:text-white">{s.name}</div>
+                  <div className="text-sm text-gray-500 dark:text-zinc-400">{s.description}</div>
                 </div>
               </div>
               <div className="text-right shrink-0 ml-4">
-                <div className="font-bold text-violet-600">{(s.price ?? 0).toLocaleString()} ₽</div>
-                <div className="text-xs text-gray-400">{s.duration} мин</div>
+                <div className="font-bold text-violet-600 dark:text-violet-400">{(s.price ?? 0).toLocaleString()} ₽</div>
+                <div className="text-xs text-gray-400 dark:text-zinc-500">{s.duration} мин</div>
               </div>
             </div>
           </Card>
@@ -160,8 +242,8 @@ export function ServiceSelection() {
 // ── 3. Выбор мастера (/book/staff) ────────────────────────────
 export function StaffSelection() {
   const navigate = useNavigate();
-  const { updateBooking } = useBooking();
-  const { data, loading, error } = useAsync(() => getStaff());
+  const { updateBooking, businessId, slug } = useBooking();
+  const { data, loading, error } = useAsync(() => getStaff(businessId), true, [businessId]);
 
   if (loading) return <BookingLayout currentStep={1}><LoadingState /></BookingLayout>;
   if (error)   return <BookingLayout currentStep={1}><ErrorState message={error.message} /></BookingLayout>;
@@ -170,38 +252,38 @@ export function StaffSelection() {
 
   const selectStaff = (s) => {
     updateBooking({ staff: s });
-    navigate("/book/calendar");
+    navigate(`/book/${slug}/calendar`);
   };
 
   return (
     <BookingLayout currentStep={1}>
-      <h2 className="text-xl font-bold text-gray-900 mb-2">Выберите мастера</h2>
-      <p className="text-sm text-gray-500 mb-5">Или пропустите — мы выберем свободного мастера</p>
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Выберите мастера</h2>
+      <p className="text-sm text-gray-500 dark:text-zinc-400 mb-5">Или пропустите — мы выберем свободного мастера</p>
 
       <div className="space-y-3 mb-5">
         {staff.map(s => (
           <Card
             key={s.id}
-            className="p-4 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all border border-transparent"
+            className="p-4 cursor-pointer hover:border-violet-300 dark:hover:border-violet-600 hover:shadow-md transition-all border border-transparent dark:border-zinc-700"
             onClick={() => selectStaff(s)}
           >
             <div className="flex items-center gap-4">
               <Avatar initials={s.avatar ?? s.name.split(" ").map(w => w[0]).join("")} size="lg" />
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="font-semibold text-gray-900">{s.name}</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{s.name}</span>
                   <StarRating rating={s.rating ?? 0} />
                 </div>
-                <div className="text-sm text-gray-500 mb-1">{s.role} · {s.specialization}</div>
-                <div className="text-xs text-emerald-600 font-medium">⏰ {s.next_available ?? s.nextAvailable ?? "Уточните время"}</div>
+                <div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">{s.role} · {s.specialization}</div>
+                <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">⏰ {s.next_available ?? s.nextAvailable ?? "Уточните время"}</div>
               </div>
-              <span className="text-gray-300 text-xl">›</span>
+              <span className="text-gray-300 dark:text-zinc-600 text-xl">›</span>
             </div>
           </Card>
         ))}
       </div>
 
-      <Button variant="secondary" className="w-full justify-center" onClick={() => { updateBooking({ staff: null }); navigate("/book/calendar"); }}>
+      <Button variant="secondary" className="w-full justify-center" onClick={() => { updateBooking({ staff: null }); navigate(`/book/${slug}/calendar`); }}>
         Любой свободный мастер
       </Button>
     </BookingLayout>
@@ -211,7 +293,7 @@ export function StaffSelection() {
 // ── 4. Выбор даты и времени (/book/calendar) ──────────────────
 export function DateTimeSelection() {
   const navigate = useNavigate();
-  const { booking, updateBooking } = useBooking();
+  const { booking, updateBooking, businessId, slug } = useBooking();
   const today = new Date();
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
@@ -228,10 +310,10 @@ export function DateTimeSelection() {
   const [selectedTime, setSelectedTime] = useState(null);
 
   const { data: slots, loading: slotsLoading, error: slotsError } = useAsync(() => getTimeSlots());
-  const { data: busy,  loading: busyLoading,  error: busyError  } = useAsync(
-    () => getBusySlots(selectedDateIso, booking.staff?.id),
+  const { data: busy, loading: busyLoading, error: busyError } = useAsync(
+    () => getBusySlots(selectedDateIso, booking.staff?.id, businessId),
     true,
-    [selectedDateIso, booking.staff?.id]
+    [selectedDateIso, booking.staff?.id, businessId]
   );
 
   const loading = slotsLoading || busyLoading;
@@ -242,7 +324,7 @@ export function DateTimeSelection() {
 
   return (
     <BookingLayout currentStep={2}>
-      <h2 className="text-xl font-bold text-gray-900 mb-4">Выберите дату и время</h2>
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Выберите дату и время</h2>
 
       {/* Выбор даты */}
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
@@ -253,8 +335,8 @@ export function DateTimeSelection() {
             onClick={() => { setSelectedDateIso(d.iso); setSelectedTime(null); }}
             className={`flex flex-col items-center px-3 py-2 rounded-xl border text-sm min-w-[52px] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               selectedDateIso === d.iso
-                ? "bg-violet-600 text-white border-violet-600"
-                : "bg-white text-gray-700 border-gray-200 hover:border-violet-300"
+                ? "bg-violet-600 text-white border-violet-600 dark:bg-violet-500 dark:border-violet-500"
+                : "bg-white dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 border-gray-200 dark:border-zinc-600 hover:border-violet-400 dark:hover:border-violet-500"
             }`}
           >
             <span className="text-xs opacity-70">{d.day}</span>
@@ -265,7 +347,7 @@ export function DateTimeSelection() {
 
       {loading ? <LoadingState /> : error ? <ErrorState message={error.message} /> : (
         <>
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Доступное время</h3>
+          <h3 className="text-sm font-medium text-gray-700 dark:text-zinc-300 mb-3">Доступное время</h3>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-6 max-h-[11rem] overflow-y-auto pr-1">
             {timeSlots.map(slot => {
               const isBusy = busySlots.includes(slot);
@@ -276,10 +358,10 @@ export function DateTimeSelection() {
                   onClick={() => setSelectedTime(slot)}
                   className={`py-2 rounded-lg text-sm border transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
                     selectedTime === slot
-                      ? "bg-violet-600 text-white border-violet-600 font-medium"
+                      ? "bg-violet-600 text-white border-violet-600 font-medium dark:bg-violet-500 dark:border-violet-500"
                       : isBusy
-                      ? "bg-gray-100 text-gray-300 border-gray-100"
-                      : "bg-white text-gray-700 border-gray-200 hover:border-violet-300"
+                      ? "bg-gray-100 text-gray-300 border-gray-100 dark:bg-zinc-800 dark:text-zinc-600 dark:border-zinc-700"
+                      : "bg-white dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 border-gray-200 dark:border-zinc-600 hover:border-violet-400 dark:hover:border-violet-500"
                   }`}
                 >
                   {slot}
@@ -295,7 +377,7 @@ export function DateTimeSelection() {
         disabled={!selectedTime}
         onClick={() => {
           updateBooking({ date: selectedDateIso, time: selectedTime });
-          navigate("/book/details");
+          navigate(`/book/${slug}/details`);
         }}
       >
         Продолжить {selectedTime ? `· ${selectedTime}` : ""}
@@ -307,7 +389,7 @@ export function DateTimeSelection() {
 // ── 5. Данные клиента (/book/details) ─────────────────────────
 export function ClientDetails() {
   const navigate = useNavigate();
-  const { booking, updateBooking } = useBooking();
+  const { booking, updateBooking, slug } = useBooking();
   const [form, setForm] = useState({
     name: booking.clientName || "",
     phone: booking.clientPhone || "",
@@ -325,13 +407,13 @@ export function ClientDetails() {
       clientEmail: form.email?.trim() || "",
       notes: form.notes?.trim() || "",
     });
-    navigate("/book/confirm");
+    navigate(`/book/${slug}/confirm`);
   };
 
   return (
     <BookingLayout currentStep={3}>
-      <h2 className="text-xl font-bold text-gray-900 mb-2">Ваши данные</h2>
-      <p className="text-sm text-gray-500 mb-5">Мы отправим подтверждение записи</p>
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Ваши данные</h2>
+      <p className="text-sm text-gray-500 dark:text-zinc-400 mb-5">Мы отправим подтверждение записи</p>
 
       <Card className="p-6 space-y-4">
         {[
@@ -340,17 +422,17 @@ export function ClientDetails() {
           ["Email",      "email", "email", "email@example.com",     false],
         ].map(([label, field, type, placeholder, required]) => (
           <div key={field}>
-            <label className="text-sm font-medium text-gray-700 block mb-1">
+            <label className="text-sm font-medium text-gray-700 dark:text-zinc-300 block mb-1">
               {label} {required && <span className="text-red-500">*</span>}
             </label>
             <input type={type} value={form[field]} onChange={field === "phone" ? (e) => setForm(p => ({ ...p, phone: normalizePhone(e.target.value) })) : update(field)} placeholder={placeholder}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+              className="w-full border border-gray-300 dark:border-zinc-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-600" />
           </div>
         ))}
         <div>
-          <label className="text-sm font-medium text-gray-700 block mb-1">Комментарий</label>
+          <label className="text-sm font-medium text-gray-700 dark:text-zinc-300 block mb-1">Комментарий</label>
           <textarea value={form.notes} onChange={update("notes")} placeholder="Пожелания к мастеру..." rows={3}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+            className="w-full border border-gray-300 dark:border-zinc-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-600 resize-none" />
         </div>
       </Card>
 
@@ -364,8 +446,7 @@ export function ClientDetails() {
 // ── 6. Подтверждение (/book/confirm) ──────────────────────────
 export function BookingConfirm() {
   const navigate = useNavigate();
-  const { booking, resetBooking } = useBooking();
-  const { data: business, loading: bizLoading } = useAsync(() => getBusiness());
+  const { booking, resetBooking, business, businessId, slug } = useBooking();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
@@ -377,8 +458,8 @@ export function BookingConfirm() {
   const staffRole = staff?.role ?? "";
 
   const handleBook = async () => {
-    if (!business?.id) {
-      setSubmitError("Создайте бизнес в Supabase (см. КАК_СОЗДАТЬ_БИЗНЕС.md).");
+    if (!businessId) {
+      setSubmitError("Не удалось определить салон.");
       return;
     }
     setSubmitting(true);
@@ -396,10 +477,10 @@ export function BookingConfirm() {
         price,
         status: "pending",
         notes: notes || null,
-        business_id: business.id,
+        business_id: businessId,
       });
       resetBooking();
-      navigate("/book/success", {
+      navigate(`/book/${slug}/success`, {
         state: { service, staff, date, time, clientPhone, price },
       });
     } catch (err) {
@@ -410,47 +491,47 @@ export function BookingConfirm() {
 
   return (
     <BookingLayout currentStep={4}>
-      <h2 className="text-xl font-bold text-gray-900 mb-4">Подтвердите запись</h2>
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Подтвердите запись</h2>
 
       <Card className="p-6 space-y-4 mb-4">
-        <div className="pb-4 border-b border-gray-100">
-          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Услуга</div>
-          <div className="font-semibold text-gray-900">{service?.name ?? "—"}</div>
-          <div className="text-sm text-gray-500">{duration} минут</div>
+        <div className="pb-4 border-b border-gray-100 dark:border-zinc-700">
+          <div className="text-xs text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-1">Услуга</div>
+          <div className="font-semibold text-gray-900 dark:text-white">{service?.name ?? "—"}</div>
+          <div className="text-sm text-gray-500 dark:text-zinc-400">{duration} минут</div>
         </div>
-        <div className="pb-4 border-b border-gray-100">
-          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Мастер</div>
+        <div className="pb-4 border-b border-gray-100 dark:border-zinc-700">
+          <div className="text-xs text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-1">Мастер</div>
           <div className="flex items-center gap-3">
             <Avatar initials={staffName.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"} />
             <div>
-              <div className="font-semibold text-gray-900">{staffName}</div>
-              <div className="text-sm text-gray-500">{staffRole}</div>
+              <div className="font-semibold text-gray-900 dark:text-white">{staffName}</div>
+              <div className="text-sm text-gray-500 dark:text-zinc-400">{staffRole}</div>
             </div>
           </div>
         </div>
-        <div className="pb-4 border-b border-gray-100">
-          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Дата и время</div>
-          <div className="font-semibold text-gray-900">{dateStr || "—"}</div>
-          <div className="text-sm text-gray-500">{time ?? "—"}</div>
+        <div className="pb-4 border-b border-gray-100 dark:border-zinc-700">
+          <div className="text-xs text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-1">Дата и время</div>
+          <div className="font-semibold text-gray-900 dark:text-white">{dateStr || "—"}</div>
+          <div className="text-sm text-gray-500 dark:text-zinc-400">{time ?? "—"}</div>
         </div>
         <div>
-          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Итого</div>
-          <div className="text-2xl font-bold text-violet-600">{(price ?? 0).toLocaleString()} ₽</div>
+          <div className="text-xs text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-1">Итого</div>
+          <div className="text-2xl font-bold text-violet-600 dark:text-violet-400">{(price ?? 0).toLocaleString()} ₽</div>
         </div>
       </Card>
 
       {submitError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg text-sm text-red-700 dark:text-red-300">
           Ошибка: {submitError}
         </div>
       )}
 
-      <p className="text-xs text-gray-400 text-center mb-4">
+      <p className="text-xs text-gray-400 dark:text-zinc-500 text-center mb-4">
         Нажимая «Записаться», вы соглашаетесь с политикой отмены
       </p>
 
-      <Button size="lg" className="w-full justify-center" onClick={handleBook} disabled={submitting || bizLoading || !business?.id}>
-        {submitting ? "Отправка..." : bizLoading ? "Загрузка..." : !business?.id ? "Нет бизнеса в БД" : "Записаться"}
+      <Button size="lg" className="w-full justify-center" onClick={handleBook} disabled={submitting || !businessId}>
+        {submitting ? "Отправка..." : !businessId ? "Нет данных салона" : "Записаться"}
       </Button>
     </BookingLayout>
   );
@@ -460,20 +541,56 @@ export function BookingConfirm() {
 export function BookingSuccess() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const { data: business } = useAsync(() => getBusiness());
+  const { business, slug } = useBooking();
+  const [calendarError, setCalendarError] = useState(null);
 
   const { service, staff, date, time, clientPhone, price } = state ?? {};
   const dateStr = date ? new Date(date + "T12:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "";
   const staffName = staff?.name ?? "Любой мастер";
 
+  const handleAddToCalendar = () => {
+    setCalendarError(null);
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const ics = buildBookingIcs({
+      date,
+      time,
+      serviceName: service?.name,
+      staffName,
+      businessName: business?.name,
+      address: business?.address,
+      phone: clientPhone || business?.phone,
+      price: price ?? service?.price,
+      durationMin: service?.duration,
+      slug,
+      origin,
+    });
+    if (!ics) {
+      setCalendarError("Нет даты или времени записи. Оформите запись заново.");
+      return;
+    }
+    try {
+      const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `zapis-${String(date).slice(0, 10)}.ics`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setCalendarError("Не удалось скачать файл календаря. Попробуйте другой браузер.");
+    }
+  };
+
   return (
     <BookingLayout>
       <div className="text-center py-8">
-        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">
+        <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">
           ✅
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Запись подтверждена!</h2>
-        <p className="text-gray-500 mb-6">Мы отправили подтверждение на ваш телефон</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Запись подтверждена!</h2>
+        <p className="text-gray-500 dark:text-zinc-400 mb-6">Мы отправили подтверждение на ваш телефон</p>
 
         <Card className="p-5 text-left mb-6">
           <div className="space-y-2 text-sm">
@@ -484,27 +601,34 @@ export function BookingSuccess() {
               ["Время", time ?? "—"],
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between">
-                <span className="text-gray-500">{label}</span>
-                <span className="font-medium">{value}</span>
+                <span className="text-gray-500 dark:text-zinc-400">{label}</span>
+                <span className="font-medium text-gray-900 dark:text-white">{value}</span>
               </div>
             ))}
-            <div className="flex justify-between border-t border-gray-100 pt-2 mt-2">
-              <span className="text-gray-500">Сумма</span>
-              <span className="font-bold text-violet-600">{(price ?? service?.price ?? 0).toLocaleString()} ₽</span>
+            <div className="flex justify-between border-t border-gray-100 dark:border-zinc-700 pt-2 mt-2">
+              <span className="text-gray-500 dark:text-zinc-400">Сумма</span>
+              <span className="font-bold text-violet-600 dark:text-violet-400">{(price ?? service?.price ?? 0).toLocaleString()} ₽</span>
             </div>
           </div>
         </Card>
 
+        {calendarError && (
+          <p className="text-sm text-red-600 dark:text-red-400 mb-3 text-center" role="alert">
+            {calendarError}
+          </p>
+        )}
+
         <div className="space-y-3">
-          <Button variant="secondary" className="w-full justify-center">
+          <Button variant="secondary" className="w-full justify-center" type="button" onClick={handleAddToCalendar}>
             📅 Добавить в календарь
           </Button>
           <Button variant="secondary" className="w-full justify-center">
             📞 {clientPhone || business?.phone || "+7 (495) 000-00-00"}
           </Button>
           <button
-            onClick={() => navigate("/book/barbershop")}
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+            type="button"
+            onClick={() => navigate(`/book/${slug}`)}
+            className="text-sm text-gray-400 dark:text-zinc-500 hover:text-violet-600 dark:hover:text-violet-400 transition-colors cursor-pointer"
           >
             ← Вернуться к главной
           </button>

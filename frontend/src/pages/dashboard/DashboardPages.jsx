@@ -4,15 +4,16 @@
 // Services, Staff, Messages, Analytics, Settings
 // ============================================
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 import {
   Button, Card, KpiCard, Badge, StatusBadge, Avatar, StarRating,
-  PageHeader, EmptyState, LoadingState, ErrorState,
+  PageHeader, EmptyState, LoadingState, ErrorState, ActionErrorBanner,
 } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
 import { normalizePhone } from "../../lib/phoneUtils";
+import { SAAS_BUSINESS_PROFILE_CHANGED } from "../../lib/saasEvents.js";
 import {
   getAppointments, getAppointmentsByDate, getAppointmentById,
   getClients, getClientById, createClient, updateClient,
@@ -53,10 +54,10 @@ export function Dashboard() {
         subtitle={new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 items-stretch">
         <KpiCard label="Записей сегодня" value={todayApps.length} icon="📋" trend="За сегодня" color="violet" />
         <KpiCard label="Выручка сегодня" value={`${revenue.toLocaleString()} ₽`} icon="💰" trend="Завершённые" color="green" />
-        <KpiCard label="Ожидают подтверждения" value={todayApps.filter(a => a.status === "pending").length} icon="⏳" trend="Pending" color="yellow" />
+        <KpiCard label="Ожидают подтверждения" value={todayApps.filter(a => a.status === "pending").length} icon="⏳" trend="Ожидают" color="yellow" />
         <KpiCard label="Отменено" value={cancelled} icon="❌" trend={`Из ${todayApps.length} записей`} color="red" />
       </div>
 
@@ -490,6 +491,7 @@ export function AppointmentDetail() {
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
+  const [mutationError, setMutationError] = useState(null);
 
   useEffect(() => {
     if (a) setNotes(a.notes || "");
@@ -497,24 +499,26 @@ export function AppointmentDetail() {
 
   const handleStatusChange = async (status) => {
     if (a.status === status) return;
+    setMutationError(null);
     setSavingStatus(true);
     try {
       await updateAppointmentStatus(id, status);
       await reload();
     } catch (err) {
-      alert(`Ошибка: ${err.message}`);
+      setMutationError(err.message ?? String(err));
     } finally {
       setSavingStatus(false);
     }
   };
 
   const handleSaveNotes = async () => {
+    setMutationError(null);
     setSavingNotes(true);
     try {
       await updateAppointment(id, { notes });
       await reload();
     } catch (err) {
-      alert(`Ошибка: ${err.message}`);
+      setMutationError(err.message ?? String(err));
     } finally {
       setSavingNotes(false);
     }
@@ -531,6 +535,11 @@ export function AppointmentDetail() {
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Запись #{a.id}</h1>
         <StatusBadge status={a.status} />
       </div>
+      <ActionErrorBanner
+        message={mutationError}
+        onDismiss={() => setMutationError(null)}
+        className="mb-4"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 space-y-4">
@@ -804,18 +813,20 @@ export function ClientProfile() {
   const clientApps = bundle?.apps ?? [];
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [notesError, setNotesError] = useState(null);
 
   useEffect(() => {
     if (c) setNotes(c.notes ?? "");
   }, [c?.id]);
 
   const handleSaveNotes = async () => {
+    setNotesError(null);
     setSavingNotes(true);
     try {
       await updateClient(id, { notes });
       await reload();
     } catch (err) {
-      alert(`Ошибка: ${err.message}`);
+      setNotesError(err.message ?? String(err));
     } finally {
       setSavingNotes(false);
     }
@@ -872,9 +883,17 @@ export function ClientProfile() {
 
           <Card className="p-5">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Заметки</h3>
+            <ActionErrorBanner
+              message={notesError}
+              onDismiss={() => setNotesError(null)}
+              className="mb-2"
+            />
             <textarea
               value={notes}
-              onChange={e => setNotes(e.target.value)}
+              onChange={e => {
+                setNotes(e.target.value);
+                if (notesError) setNotesError(null);
+              }}
               onBlur={handleSaveNotes}
               rows={3}
               disabled={savingNotes}
@@ -914,6 +933,7 @@ export function ServicesPage() {
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState("Все");
   const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
   const { data, loading, error, execute: reload } = useAsync(() => getServices());
 
   if (loading) return <LoadingState />;
@@ -926,12 +946,13 @@ export function ServicesPage() {
   const handleDelete = async (e, id) => {
     e.stopPropagation();
     if (!confirm("Удалить услугу? Это действие нельзя отменить.")) return;
+    setDeleteError(null);
     setDeletingId(id);
     try {
       await deleteService(id);
       await reload();
     } catch (err) {
-      alert(`Ошибка: ${err.message}`);
+      setDeleteError(err.message ?? String(err));
     } finally {
       setDeletingId(null);
     }
@@ -943,6 +964,11 @@ export function ServicesPage() {
         title="Услуги"
         subtitle={`${services.filter(s => s.active).length} активных`}
         action={<Button onClick={() => navigate("/services/new")}>+ Добавить услугу</Button>}
+      />
+      <ActionErrorBanner
+        message={deleteError}
+        onDismiss={() => setDeleteError(null)}
+        className="mb-4"
       />
 
       <div className="flex gap-2 mb-4 flex-wrap">
@@ -1015,6 +1041,7 @@ export function ServiceEditor() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [saving, setSaving]           = useState(false);
   const [deleting, setDeleting]       = useState(false);
+  const [actionError, setActionError] = useState(null);
 
   if (!isNew && s && !form) setForm({ ...s });
 
@@ -1033,6 +1060,7 @@ export function ServiceEditor() {
       setFieldErrors(errors);
       return;
     }
+    setActionError(null);
     setSaving(true);
     try {
       if (isNew) {
@@ -1044,7 +1072,7 @@ export function ServiceEditor() {
       }
       navigate("/services");
     } catch (err) {
-      alert(`Ошибка при сохранении: ${err.message}`);
+      setActionError(err.message ?? String(err));
     } finally {
       setSaving(false);
     }
@@ -1052,12 +1080,13 @@ export function ServiceEditor() {
 
   const handleDelete = async () => {
     if (!confirm(`Удалить услугу "${form.name}"? Это действие нельзя отменить.`)) return;
+    setActionError(null);
     setDeleting(true);
     try {
       await deleteService(id);
       navigate("/services");
     } catch (err) {
-      alert(`Ошибка при удалении: ${err.message}`);
+      setActionError(err.message ?? String(err));
       setDeleting(false);
     }
   };
@@ -1078,6 +1107,10 @@ export function ServiceEditor() {
 
       <Card className="p-6 max-w-lg">
         <div className="space-y-4">
+          <ActionErrorBanner
+            message={actionError}
+            onDismiss={() => setActionError(null)}
+          />
           {fields.map(([label, field, type]) => (
             <div key={field}>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
@@ -1271,13 +1304,13 @@ export function StaffPage() {
               <div className="flex items-center gap-3 mb-3">
                 <Avatar initials={s.avatar ?? s.name.split(" ").map(w => w[0]).join("")} size="lg" />
                 <div>
-                  <div className="font-semibold text-gray-900">{s.name}</div>
-                  <div className="text-sm text-gray-500">{s.role}</div>
+                  <div className="font-semibold text-gray-900 dark:text-white">{s.name}</div>
+                  <div className="text-sm text-gray-500 dark:text-zinc-400">{s.role}</div>
                   <StarRating rating={s.rating ?? 0} />
                 </div>
               </div>
-              <div className="text-xs text-gray-500 mb-2">{s.specialization}</div>
-              <div className="text-xs text-gray-400">🕐 {s.working_hours ?? s.workingHours}</div>
+              <div className="text-xs text-gray-500 dark:text-zinc-400 mb-2">{s.specialization}</div>
+              <div className="text-xs text-gray-400 dark:text-zinc-500">🕐 {s.working_hours ?? s.workingHours}</div>
               <div className="mt-3 flex flex-wrap gap-1">
                 {svcIds.map(sid => {
                   const sv = svcMap[sid];
@@ -1314,7 +1347,9 @@ export function StaffProfile() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate("/staff")} className="text-gray-400 hover:text-gray-600 cursor-pointer">← Назад</button>
+        <button onClick={() => navigate("/staff")} className="text-gray-500 dark:text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 cursor-pointer text-sm">
+          ← Назад
+        </button>
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">{s.name}</h1>
       </div>
 
@@ -1345,30 +1380,39 @@ export function StaffProfile() {
         <div className="col-span-2">
           <Card className="p-5">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Статистика и записи</h3>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="text-center p-3 bg-gray-50 dark:bg-zinc-700/50 rounded-lg">
-                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{apps.length}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Записей</div>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-4">
+              <div className="flex flex-col items-center justify-center min-h-[5.5rem] px-2 py-3 bg-gray-50 dark:bg-zinc-700/50 rounded-lg text-center">
+                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums leading-none">{apps.length}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-tight">Записей</div>
               </div>
-              <div className="text-center p-3 bg-gray-50 dark:bg-zinc-700/50 rounded-lg">
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{apps.filter(a => a.status === "completed").length}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Завершено</div>
+              <div className="flex flex-col items-center justify-center min-h-[5.5rem] px-2 py-3 bg-gray-50 dark:bg-zinc-700/50 rounded-lg text-center">
+                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">{apps.filter(x => x.status === "completed").length}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-tight">Завершено</div>
               </div>
-              <div className="text-center p-3 bg-gray-50 dark:bg-zinc-700/50 rounded-lg">
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{apps.reduce((sum, a) => sum + (a.price ?? 0), 0).toLocaleString()} ₽</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Выручка</div>
+              <div className="flex flex-col items-center justify-center min-h-[5.5rem] px-2 py-3 bg-gray-50 dark:bg-zinc-700/50 rounded-lg text-center">
+                <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums leading-none break-all sm:break-normal">{apps.reduce((sum, x) => sum + (x.price ?? 0), 0).toLocaleString()}&nbsp;₽</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-tight">Выручка</div>
               </div>
             </div>
             <div className="space-y-2">
-              {apps.map(a => (
-                <div key={a.id} className="flex items-center gap-3 p-3 border border-gray-100 dark:border-zinc-700 rounded-lg text-sm">
-                  <span className="text-gray-400 dark:text-gray-500 w-24 shrink-0">{a.date.slice(5).replace("-", ".")} {a.time}</span>
-                  <span className="flex-1 text-gray-900 dark:text-white">{a.client_name ?? a.clientName}</span>
-                  <span className="text-gray-500 dark:text-gray-400">{a.service}</span>
-                  <StatusBadge status={a.status} />
-                  <span className="font-semibold text-gray-900 dark:text-white shrink-0">{(a.price ?? 0).toLocaleString()} ₽</span>
-                </div>
-              ))}
+              {apps.map(a => {
+                const d = a.date && String(a.date).length >= 10 ? String(a.date).slice(0, 10).split("-") : null;
+                const dateLine = d ? `${d[2]}.${d[1]} ${a.time}` : `${a.time}`;
+                return (
+                  <div
+                    key={a.id}
+                    className="grid grid-cols-[5.25rem_minmax(0,1fr)_auto] sm:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,6.5rem)_auto_auto] gap-x-2 sm:gap-x-3 gap-y-1 items-center px-3 py-2.5 border border-gray-100 dark:border-zinc-700 rounded-lg text-sm"
+                  >
+                    <span className="text-gray-400 dark:text-gray-500 tabular-nums text-xs sm:text-sm whitespace-nowrap">{dateLine}</span>
+                    <span className="font-medium text-gray-900 dark:text-white min-w-0 truncate">{a.client_name ?? a.clientName}</span>
+                    <span className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm min-w-0 truncate hidden sm:block">{a.service}</span>
+                    <div className="flex items-center justify-end gap-2 shrink-0 sm:contents">
+                      <StatusBadge status={a.status} />
+                      <span className="font-semibold text-gray-900 dark:text-white tabular-nums text-right whitespace-nowrap">{(a.price ?? 0).toLocaleString()}&nbsp;₽</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         </div>
@@ -1415,8 +1459,13 @@ export function MessagesPage() {
   return (
     <div>
       <PageHeader
-        title="Уведомления"
-        subtitle="Демо: шаблоны только в браузере; логи — последние записи (не факт отправки SMS/Email)"
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            Уведомления
+            <Badge color="yellow">Заглушка UI</Badge>
+          </span>
+        }
+        subtitle="Шаблоны и переключатели только в браузере, без отправки SMS/Email; блок справа — список записей как пример «лога», не очередь уведомлений."
       />
 
       <div className="grid grid-cols-2 gap-4">
@@ -1527,9 +1576,12 @@ export function AnalyticsPage() {
 
   return (
     <div>
-      <PageHeader title="Аналитика" subtitle="Последние 6 месяцев" />
+      <PageHeader
+        title="Аналитика"
+        subtitle="Выручка и записи по месяцам — из API; блок «Популярные услуги» ниже помечен как демо-визуализация."
+      />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 items-stretch">
         <KpiCard label="Выручка за месяц" value={revenue.length ? `${(revenue[revenue.length - 1]?.revenue ?? 0).toLocaleString()} ₽` : "—"} icon="💰" color="violet" />
         <KpiCard label="Записей за месяц" value={revenue.length ? (revenue[revenue.length - 1]?.bookings ?? "—") : "—"} icon="📋" color="green" />
         <KpiCard label="Всего клиентов"   value={(appointments ?? []).length} icon="👤" color="yellow" />
@@ -1551,7 +1603,11 @@ export function AnalyticsPage() {
         </Card>
 
         <Card className="p-5">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Популярные услуги</h3>
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Популярные услуги</h3>
+            <Badge color="yellow">Демо</Badge>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Длина полос не считается из БД — только порядок списка и цены услуг реальны.</p>
           <div className="space-y-3">
             {activeServices.map((s, i) => (
               <div key={s.id} className="flex items-center gap-3">
@@ -1629,6 +1685,25 @@ export function SettingsPage() {
   const { data: bizData, loading, error } = useAsync(() => getBusiness());
   const [biz, setBiz] = useState(null);
   const [saving, setSaving] = useState(false);
+  /** Сообщение после сохранения профиля (видно в форме, без alert) */
+  const [profileFeedback, setProfileFeedback] = useState(null);
+  const profileFeedbackTimer = useRef(null);
+  const [localSettingsFeedback, setLocalSettingsFeedback] = useState(null);
+  const localSettingsTimer = useRef(null);
+
+  const clearTimer = (ref) => {
+    if (ref.current) {
+      clearTimeout(ref.current);
+      ref.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      clearTimer(profileFeedbackTimer);
+      clearTimer(localSettingsTimer);
+    };
+  }, []);
 
   if (bizData && !biz) setBiz({ ...bizData });
 
@@ -1642,29 +1717,46 @@ export function SettingsPage() {
 
   const handleSaveBiz = async () => {
     if (!biz?.id) return;
+    setProfileFeedback(null);
+    clearTimer(profileFeedbackTimer);
     setSaving(true);
     try {
-      await updateBusiness(biz.id, {
+      const updated = await updateBusiness(biz.id, {
         name: biz.name,
         address: biz.address,
         phone: biz.phone,
         email: biz.email,
         description: biz.description,
       });
-      alert("Сохранено");
+      setBiz((p) => ({ ...p, ...updated }));
+      window.dispatchEvent(new Event(SAAS_BUSINESS_PROFILE_CHANGED));
+      setProfileFeedback({ type: "ok", text: "Изменения сохранены и применены." });
+      profileFeedbackTimer.current = setTimeout(() => {
+        setProfileFeedback(null);
+        profileFeedbackTimer.current = null;
+      }, 6000);
     } catch (err) {
-      alert(`Ошибка: ${err.message}`);
+      setProfileFeedback({ type: "err", text: err?.message ?? "Не удалось сохранить" });
     } finally {
       setSaving(false);
     }
   };
 
+  const showLocalSaved = (text, type = "ok") => {
+    clearTimer(localSettingsTimer);
+    setLocalSettingsFeedback({ type, text });
+    localSettingsTimer.current = setTimeout(() => {
+      setLocalSettingsFeedback(null);
+      localSettingsTimer.current = null;
+    }, 5000);
+  };
+
   const handleSaveSettings = (key) => {
     try {
       localStorage.setItem(`settings_${key}`, JSON.stringify(key === "booking" ? booking : notifications));
-      alert("Сохранено");
+      showLocalSaved("Настройки сохранены в этом браузере.", "ok");
     } catch {
-      alert("Сохранено (локально)");
+      showLocalSaved("Не удалось записать в браузер — проверьте доступ к хранилищу.", "err");
     }
   };
 
@@ -1676,7 +1768,11 @@ export function SettingsPage() {
         {tabs.map(t => (
           <button
             key={t.id}
-            onClick={() => setActiveTab(t.id)}
+            onClick={() => {
+              setActiveTab(t.id);
+              setProfileFeedback(null);
+              setLocalSettingsFeedback(null);
+            }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
               activeTab === t.id ? "border-violet-600 text-violet-600 dark:text-violet-400 dark:border-violet-400" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             }`}
@@ -1697,7 +1793,16 @@ export function SettingsPage() {
                   <label className="text-sm font-medium text-gray-700 block mb-1">{label}</label>
                   <input
                     value={biz[field] ?? ""}
-                    onChange={e => setBiz(p => ({ ...p, [field]: field === "phone" ? normalizePhone(e.target.value) : e.target.value }))}
+                    onChange={(e) => {
+                      if (profileFeedback?.type === "ok") {
+                        clearTimer(profileFeedbackTimer);
+                        setProfileFeedback(null);
+                      }
+                      setBiz((p) => ({
+                        ...p,
+                        [field]: field === "phone" ? normalizePhone(e.target.value) : e.target.value,
+                      }));
+                    }}
                     className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
                 </div>
@@ -1706,12 +1811,36 @@ export function SettingsPage() {
                 <label className="text-sm font-medium text-gray-700 block mb-1">Описание</label>
                 <textarea
                   value={biz.description ?? ""}
-                  onChange={e => setBiz(p => ({ ...p, description: e.target.value }))}
+                  onChange={(e) => {
+                    if (profileFeedback?.type === "ok") {
+                      clearTimer(profileFeedbackTimer);
+                      setProfileFeedback(null);
+                    }
+                    setBiz((p) => ({ ...p, description: e.target.value }));
+                  }}
                   rows={3}
                   className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
                 />
               </div>
-              <Button onClick={handleSaveBiz} disabled={saving}>{saving ? "Сохранение..." : "Сохранить изменения"}</Button>
+              {profileFeedback && (
+                <div
+                  role="status"
+                  className={`rounded-lg px-3 py-2.5 text-sm ${
+                    profileFeedback.type === "ok"
+                      ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/50"
+                      : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-900/50"
+                  }`}
+                >
+                  {profileFeedback.type === "ok" ? (
+                    <span className="font-medium">✓ {profileFeedback.text}</span>
+                  ) : (
+                    <span>{profileFeedback.text}</span>
+                  )}
+                </div>
+              )}
+              <Button onClick={handleSaveBiz} disabled={saving}>
+                {saving ? "Сохранение…" : "Сохранить изменения"}
+              </Button>
             </div>
           </Card>
         ) : null
@@ -1720,6 +1849,21 @@ export function SettingsPage() {
       {activeTab === "booking" && (
         <Card className="p-6 max-w-lg">
           <div className="space-y-5">
+            {localSettingsFeedback && (
+              <div
+                role="status"
+                className={`rounded-lg px-3 py-2.5 text-sm border ${
+                  localSettingsFeedback.type === "ok"
+                    ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/50"
+                    : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-200 dark:border-red-900/50"
+                }`}
+              >
+                <span className="font-medium">
+                  {localSettingsFeedback.type === "ok" ? "✓ " : ""}
+                  {localSettingsFeedback.text}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <div className="font-medium text-gray-900 dark:text-white">Онлайн-запись</div>
@@ -1748,6 +1892,21 @@ export function SettingsPage() {
       {activeTab === "notifications" && (
         <Card className="p-6 max-w-lg">
           <div className="space-y-5">
+            {localSettingsFeedback && (
+              <div
+                role="status"
+                className={`rounded-lg px-3 py-2.5 text-sm border ${
+                  localSettingsFeedback.type === "ok"
+                    ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/50"
+                    : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-200 dark:border-red-900/50"
+                }`}
+              >
+                <span className="font-medium">
+                  {localSettingsFeedback.type === "ok" ? "✓ " : ""}
+                  {localSettingsFeedback.text}
+                </span>
+              </div>
+            )}
             {[["Email уведомления", "email"], ["SMS уведомления", "sms"]].map(([label, field]) => (
               <div key={field} className="flex items-center justify-between">
                 <div className="font-medium text-gray-900 dark:text-white">{label}</div>

@@ -7,6 +7,9 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext.jsx";
+import { useAsync } from "../hooks/useAsync.js";
+import { getBusiness, signOut } from "../lib/api.js";
 
 const navItems = [
   { to: "/dashboard",    icon: "📊", label: "Дашборд" },
@@ -26,9 +29,25 @@ const mobileBottomNav = navItems.slice(0, 4);
 export default function DashboardLayout({ children }) {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
+  const { data: biz } = useAsync(() => getBusiness(), true, [user?.id]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  const publicBookPath = `/book/${biz?.slug ?? "barbershop"}`;
+  const userEmail = user?.email ?? "";
+  const userInitial = (userEmail[0] ?? "U").toUpperCase();
+
+  const handleLogout = async () => {
+    setAccountMenuOpen(false);
+    try {
+      await signOut();
+    } catch {
+      /* всё равно уходим на логин */
+    }
+    navigate("/login", { replace: true });
+  };
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-zinc-900 overflow-hidden">
@@ -42,8 +61,10 @@ export default function DashboardLayout({ children }) {
           <div className="flex items-center gap-2">
             <span className="text-2xl">✂️</span>
             <div>
-              <div className="font-bold text-gray-900 dark:text-white text-sm leading-tight">Барбершоп</div>
-              <div className="text-xs text-gray-400 dark:text-zinc-500">Премиум</div>
+              <div className="font-bold text-gray-900 dark:text-white text-sm leading-tight">
+                {biz?.name ?? "Мой салон"}
+              </div>
+              <div className="text-xs text-gray-400 dark:text-zinc-500">Кабинет</div>
             </div>
           </div>
         </div>
@@ -72,16 +93,11 @@ export default function DashboardLayout({ children }) {
 
         <div className="p-3 border-t border-gray-200 dark:border-zinc-700 space-y-1">
           <button
-            onClick={() => navigate("/book/barbershop")}
+            type="button"
+            onClick={() => navigate(publicBookPath)}
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer"
           >
-            🔗 Публичная страница
-          </button>
-          <button
-            onClick={() => navigate("/admin")}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer"
-          >
-            🛡️ Панель администратора
+            🔗 Публичная запись
           </button>
         </div>
       </aside>
@@ -96,7 +112,9 @@ export default function DashboardLayout({ children }) {
           {/* Логотип на мобильном */}
           <div className="flex items-center gap-2 md:hidden">
             <span className="text-xl">✂️</span>
-            <span className="font-bold text-gray-900 dark:text-white text-sm">Барбершоп</span>
+            <span className="font-bold text-gray-900 dark:text-white text-sm truncate max-w-[10rem]">
+              {biz?.name ?? "Салон"}
+            </span>
           </div>
           {/* Подпись на десктопе */}
           <div className="hidden md:block text-sm text-gray-500 dark:text-gray-400">Кабинет бизнеса</div>
@@ -154,15 +172,17 @@ export default function DashboardLayout({ children }) {
                 onClick={() => setAccountMenuOpen(v => !v)}
                 className="w-8 h-8 bg-gray-100 dark:bg-zinc-700 text-gray-700 dark:text-gray-300 rounded-full flex items-center justify-center text-sm font-semibold hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors cursor-pointer"
               >
-                А
+                {userInitial}
               </button>
               {accountMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setAccountMenuOpen(false)} aria-hidden="true" />
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl shadow-lg z-50 overflow-hidden">
                     <div className="px-3 py-2 border-b border-gray-100 dark:border-zinc-700">
-                      <div className="font-medium text-gray-900 dark:text-white text-sm">Администратор</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">admin@barbershop.ru</div>
+                      <div className="font-medium text-gray-900 dark:text-white text-sm">Аккаунт</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate" title={userEmail}>
+                        {userEmail || "—"}
+                      </div>
                     </div>
                     <button
                       onClick={() => { setAccountMenuOpen(false); navigate("/settings"); }}
@@ -178,7 +198,8 @@ export default function DashboardLayout({ children }) {
                     </button>
                     <div className="border-t border-gray-100 dark:border-zinc-700">
                       <button
-                        onClick={() => { setAccountMenuOpen(false); navigate("/book/barbershop"); }}
+                        type="button"
+                        onClick={handleLogout}
                         className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                       >
                         Выйти
@@ -267,18 +288,16 @@ export default function DashboardLayout({ children }) {
               ))}
             </div>
 
-            <div className="border-t border-gray-100 dark:border-zinc-700 pt-3 flex gap-2">
+            <div className="border-t border-gray-100 dark:border-zinc-700 pt-3">
               <button
-                onClick={() => { navigate("/book/barbershop"); setMobileMenuOpen(false); }}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-zinc-700 rounded-lg"
+                type="button"
+                onClick={() => {
+                  navigate(publicBookPath);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-zinc-700 rounded-lg"
               >
-                🔗 Публичная страница
-              </button>
-              <button
-                onClick={() => { navigate("/admin"); setMobileMenuOpen(false); }}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-zinc-700 rounded-lg"
-              >
-                🛡️ Администратор
+                🔗 Публичная запись
               </button>
             </div>
           </div>

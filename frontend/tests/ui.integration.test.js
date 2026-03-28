@@ -9,6 +9,7 @@ let businessId = null;
 let testClientId = null;
 
 beforeAll(async () => {
+  await api.signInTestUser();
   try {
     const biz = await api.getBusiness();
     if (biz?.id) businessId = biz.id;

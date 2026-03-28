@@ -1,14 +1,5 @@
-import { throwOnError } from './helpers';
-import { supabase } from './supabase';
+import { ApiError } from './errors.js';
 
 export async function getAdminBusinesses() {
-  return throwOnError(
-    await supabase.from('admin_businesses').select('*').order('id', { ascending: false })
-  );
-}
-
-export async function getRevenueData() {
-  return throwOnError(
-    await supabase.from('revenue_data').select('*').order('id')
-  );
+  throw new ApiError('Панель платформы недоступна в этой версии', { code: 'forbidden', status: 403 });
 }
