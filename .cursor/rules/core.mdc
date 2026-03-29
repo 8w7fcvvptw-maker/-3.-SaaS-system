@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+
+Always read docs/project.md before making decisions.
+Always understand the codebase before writing code.
+Prefer modifying existing code over creating new files.
+Keep changes minimal and focused.

@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+
+Use TypeScript whenever possible.
+Prefer simple and readable code over clever solutions.
+Use clear naming conventions.
+Functions should be small and focused.
+Avoid duplication (DRY principle).
+Comment only when necessary.

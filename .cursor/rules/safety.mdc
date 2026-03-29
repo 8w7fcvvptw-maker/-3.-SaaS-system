@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+
+Never execute destructive operations without confirmation.
+Do not delete or overwrite critical files without warning.
+Avoid risky commands in terminal.
+Ask before making major architectural changes.

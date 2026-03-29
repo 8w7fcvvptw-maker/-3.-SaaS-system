@@ -1,0 +1,9 @@
+---
+alwaysApply: true
+---
+
+Optimize prompts for reuse.
+Prefer structured outputs (JSON, schema, lists).
+Reduce unnecessary verbosity.
+Make prompts modular and composable.
+Document important prompts in docs/prompts.md.

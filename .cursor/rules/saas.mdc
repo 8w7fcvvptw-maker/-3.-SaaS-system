@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+
+Always build scalable SaaS architecture.
+Assume multi-tenant system by default.
+Separate frontend, backend, and database clearly.
+Include auth, billing, and user management placeholders if missing.
+Prefer reusable modules and services.
+Avoid hardcoding business logic.

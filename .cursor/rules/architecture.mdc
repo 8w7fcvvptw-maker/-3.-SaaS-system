@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+
+Follow existing project architecture strictly.
+Do not introduce new patterns without strong justification.
+Keep clear separation of concerns.
+Use service layer for business logic.
+Use API layer for communication.
+Avoid mixing UI and business logic.
