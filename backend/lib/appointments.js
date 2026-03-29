@@ -16,6 +16,7 @@ import {
   assertPositiveInt,
   assertNonNegativeNumber,
 } from './validation.js';
+import { notifyNewAppointmentCreated } from './telegram.js';
 
 const APPOINTMENT_REL_SELECT = `
   *,
@@ -361,7 +362,17 @@ export async function createAppointment(data) {
   const res = await withRelFallback((sel) =>
     supabase.from('appointments').insert(insertData).select(sel).single()
   );
-  return mapAppointmentRow(throwOnError(res));
+  const created = mapAppointmentRow(throwOnError(res));
+  await notifyNewAppointmentCreated(created);
+  return created;
+}
+
+/** Удаление только в финальных статусах (защита от случайного удаления активных записей). */
+const STATUSES_ALLOWED_TO_DELETE = new Set(['completed', 'cancelled', 'no_show']);
+
+function normalizeStatusForDeleteRule(status) {
+  if (status === 'no-show') return 'no_show';
+  return status;
 }
 
 export async function deleteAppointment(id) {
@@ -369,6 +380,23 @@ export async function deleteAppointment(id) {
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('appointments', id, bid, 'Запись');
+
+  const { data: row, error } = await supabase
+    .from('appointments')
+    .select('status')
+    .eq('id', id)
+    .eq('business_id', bid)
+    .maybeSingle();
+  if (error) throwOnError({ data: null, error });
+
+  const normalized = normalizeStatusForDeleteRule(row?.status);
+  if (!row?.status || !STATUSES_ALLOWED_TO_DELETE.has(normalized)) {
+    throw new ApiError(
+      'Удалять можно только записи со статусами «Завершено», «Отменено» или «Не явился»',
+      { code: 'validation_error', status: 400 }
+    );
+  }
+
   return throwOnError(
     await supabase.from('appointments').delete().eq('id', id).eq('business_id', bid)
   );

@@ -1,5 +1,6 @@
--- Таблица тарифных планов для Admin SaaS панели
--- Выполните этот SQL в Supabase: SQL Editor → New query → вставьте и Run
+-- 003 — Таблица тарифных планов для Admin SaaS панели
+-- После: 001 (и при необходимости 002). Перед: 004_rls_auth.sql (там RLS на plans).
+-- Supabase: SQL Editor → New query → вставьте и Run
 
 CREATE TABLE IF NOT EXISTS plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

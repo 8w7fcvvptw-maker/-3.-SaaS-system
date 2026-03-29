@@ -1,7 +1,7 @@
 -- ============================================================
--- RLS: только владелец салона (auth.uid → businesses → business_id)
+-- 004 — RLS: только владелец салона (auth.uid → businesses → business_id)
 -- Без публичных SELECT/INSERT для anon: гость с anon-ключом не видит строк.
--- Выполните в Supabase SQL Editor после supabase-relations-migration.sql.
+-- После: 001_relations.sql и 003_plans.sql (таблица plans нужна для политик).
 -- ============================================================
 
 -- 1) Slug (удобство URL; доступ только у владельца через RLS)

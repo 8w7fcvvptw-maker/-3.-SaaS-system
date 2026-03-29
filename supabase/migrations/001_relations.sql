@@ -1,6 +1,7 @@
 -- ============================================
--- Supabase relations migration (safe-ish)
--- Выполните в Supabase: SQL Editor → New query → Run
+-- 001 — Supabase relations migration (safe-ish)
+-- Папка: supabase/migrations/ (выполняйте по порядку номеров)
+-- Supabase: SQL Editor → New query → Run
 -- ============================================
 
 -- 1) appointments.client_id (связь записи с клиентом)
@@ -119,4 +120,3 @@ CREATE INDEX IF NOT EXISTS staff_business_id_idx
 
 CREATE INDEX IF NOT EXISTS clients_business_id_idx
   ON public.clients (business_id);
-

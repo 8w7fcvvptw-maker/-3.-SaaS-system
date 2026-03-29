@@ -1,5 +1,6 @@
--- Связи для вложенного select в API: appointments + services + staff
--- Выполните в Supabase SQL Editor, если FK ещё не созданы.
+-- 002 — FK для appointments (вложенные select в API)
+-- После: 001_relations.sql
+-- Выполните в Supabase SQL Editor, если FK ещё не созданы или нужно пересоздать.
 
 -- Услуга
 alter table appointments

@@ -1,0 +1,9 @@
+{
+  "name": "saas-system",
+  "private": true,
+  "scripts": {
+    "supabase:start": "npx supabase@latest start",
+    "supabase:stop": "npx supabase@latest stop",
+    "functions:serve": "npx supabase@latest functions serve notify-appointment-telegram --env-file supabase/.env.functions"
+  }
+}

@@ -191,6 +191,11 @@ describe('4. Записи (Appointments)', () => {
     createdAppointmentId = newApp.id;
   });
 
+  it('не удаляет запись в статусе «ожидает»', async () => {
+    if (!hasBusiness || !createdAppointmentId) return;
+    await expect(api.deleteAppointment(createdAppointmentId)).rejects.toThrow();
+  });
+
   it('получает список записей', async () => {
     if (!hasBusiness) return;
     const list = await api.getAppointments();
@@ -205,6 +210,7 @@ describe('4. Записи (Appointments)', () => {
 
   it('отменяет/удаляет запись', async () => {
     if (!hasBusiness || !createdAppointmentId) return;
+    await api.updateAppointmentStatus(createdAppointmentId, 'cancelled');
     await api.deleteAppointment(createdAppointmentId);
     await expect(api.getAppointmentById(createdAppointmentId)).rejects.toThrow();
     createdAppointmentId = null;

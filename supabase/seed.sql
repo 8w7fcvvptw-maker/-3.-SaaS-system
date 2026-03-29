@@ -2,10 +2,10 @@
 -- Тестовые данные (seed) для SaaS Booking
 -- ============================================================
 -- Когда запускать: после создания таблиц и после
---   supabase-relations-migration.sql (внешние ключи).
+--   supabase/migrations/001_relations.sql (внешние ключи).
 --
 -- Требования:
---   • В таблице businesses есть колонка slug (см. supabase-rls-auth-migration.sql).
+--   • В таблице businesses есть колонка slug (см. supabase/migrations/004_rls_auth.sql).
 --   • В Supabase уже есть хотя бы один пользователь:
 --     Authentication → Users (иначе нельзя заполнить businesses.user_id).
 --

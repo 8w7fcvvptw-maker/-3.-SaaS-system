@@ -21,9 +21,12 @@ import {
   getStaff, getStaffById, createStaff,
   getAppointmentsByStaff, getAppointmentsForClient,
   getBusiness, updateBusiness, updateService, createService, deleteService,
-  createAppointment, updateAppointment, updateAppointmentStatus,
+  createAppointment, updateAppointment, updateAppointmentStatus, deleteAppointment,
   getRevenueData,
 } from "../../lib/api";
+
+/** Статусы, в которых разрешено удаление записи (совпадает с backend). */
+const APPOINTMENT_DELETABLE_STATUSES = new Set(["completed", "cancelled", "no_show", "no-show"]);
 
 // Сегодняшняя дата в формате YYYY-MM-DD
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -178,12 +181,13 @@ export function CalendarPage() {
                 pending:   "bg-yellow-100 border-yellow-400 text-yellow-900",
                 cancelled: "bg-red-100 border-red-300 text-red-700 opacity-60",
                 completed: "bg-teal-100 border-teal-400 text-teal-900",
+                no_show: "bg-orange-100 border-orange-300 text-orange-800",
                 "no-show": "bg-orange-100 border-orange-300 text-orange-800",
               };
               return (
                 <div
                   key={a.id}
-                  className={`absolute left-2 right-2 rounded-lg border-l-4 px-2 py-1 cursor-pointer hover:shadow-md transition-shadow text-xs ${colors[a.status]}`}
+                  className={`absolute left-2 right-2 rounded-lg border-l-4 px-2 py-1 cursor-pointer hover:shadow-md transition-shadow text-xs ${colors[a.status] ?? "bg-gray-100 border-gray-300"}`}
                   style={{ top: `${getTop(a.time)}px`, height: `${getHeight(a.duration) - 4}px` }}
                   onClick={() => navigate(`/appointments/${a.id}`)}
                 >
@@ -386,7 +390,13 @@ export function AppointmentsList() {
   if (error)   return <ErrorState message={error.message} />;
 
   const appointments = data ?? [];
-  const filtered = filter === "all" ? appointments : appointments.filter(a => a.status === filter);
+  const filtered =
+    filter === "all"
+      ? appointments
+      : appointments.filter((a) => {
+          if (filter === "no_show") return a.status === "no_show" || a.status === "no-show";
+          return a.status === filter;
+        });
 
   return (
     <div>
@@ -397,7 +407,7 @@ export function AppointmentsList() {
       />
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        {["all", "confirmed", "pending", "completed", "cancelled", "no-show"].map(s => (
+        {["all", "confirmed", "pending", "completed", "cancelled", "no_show"].map(s => (
           <button
             key={s}
             onClick={() => setFilter(s)}
@@ -413,7 +423,7 @@ export function AppointmentsList() {
                     ? "Завершено"
                     : s === "cancelled"
                       ? "Отменено"
-                      : "Не пришёл"}
+                      : "Не явился"}
           </button>
         ))}
       </div>
@@ -491,6 +501,7 @@ export function AppointmentDetail() {
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [mutationError, setMutationError] = useState(null);
 
   useEffect(() => {
@@ -521,6 +532,23 @@ export function AppointmentDetail() {
       setMutationError(err.message ?? String(err));
     } finally {
       setSavingNotes(false);
+    }
+  };
+
+  const canDeleteAppointment = a && APPOINTMENT_DELETABLE_STATUSES.has(a.status);
+
+  const handleDeleteAppointment = async () => {
+    if (!canDeleteAppointment || !id) return;
+    if (!window.confirm("Удалить эту запись? Восстановить её будет нельзя.")) return;
+    setMutationError(null);
+    setDeleting(true);
+    try {
+      await deleteAppointment(id);
+      navigate("/appointments", { replace: true });
+    } catch (err) {
+      setMutationError(err.message ?? String(err));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -595,17 +623,35 @@ export function AppointmentDetail() {
           <Card className="p-5">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Статус</h3>
             <div className="space-y-2">
-              {["pending", "confirmed", "completed", "cancelled", "no-show"].map(s => (
+              {["pending", "confirmed", "completed", "cancelled", "no_show"].map(s => (
                 <button
                   key={s}
                   disabled={savingStatus}
                   onClick={() => handleStatusChange(s)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer disabled:opacity-50 ${a.status === s ? "border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300" : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"}`}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer disabled:opacity-50 ${
+                    a.status === s || (s === "no_show" && (a.status === "no-show" || a.status === "no_show"))
+                      ? "border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
+                      : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"
+                  }`}
                 >
                   <StatusBadge status={s} />
                 </button>
               ))}
             </div>
+            {canDeleteAppointment ? (
+              <Button
+                variant="secondary"
+                className="w-full justify-center mt-4 border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+                disabled={deleting || savingStatus}
+                onClick={handleDeleteAppointment}
+              >
+                {deleting ? "Удаление…" : "Удалить запись"}
+              </Button>
+            ) : (
+              <p className="text-xs text-gray-400 dark:text-zinc-500 mt-4">
+                Удаление доступно только для статусов «Завершено», «Отменено» или «Не явился».
+              </p>
+            )}
           </Card>
         </div>
       </div>

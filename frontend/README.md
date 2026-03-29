@@ -138,7 +138,7 @@ create table revenue_data (
 
 Чтобы внешние ключи и вложенные запросы в API работали предсказуемо:
 
-1. В **SQL Editor** выполните скрипт из корня репозитория: **`supabase-relations-migration.sql`**.
+1. В **SQL Editor** по порядку выполните SQL из **`supabase/migrations/`**: `001_relations.sql`, при необходимости `002_appointments_fk.sql`, затем `003_plans.sql`, затем `004_rls_auth.sql` (последний включает RLS и требует таблицу `plans`).
 2. Тестовые данные (бизнес, услуги, мастера, клиенты, записи): **`supabase/seed.sql`**. Порядок и требования — в **`КАК_СОЗДАТЬ_БИЗНЕС.md`** (раздел про seed).
 
 ### 4. Настроить Row Level Security (опционально для продакшн)

@@ -12,6 +12,7 @@ import {
 import { Button, Card } from "../../components/ui.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { SAAS_BUSINESS_PROFILE_CHANGED } from "../../lib/saasEvents.js";
+import { formatSupabaseAuthError } from "../../lib/formatSupabaseAuthError.js";
 
 function inputClass(hasError) {
   const base =
@@ -53,7 +54,7 @@ export function LoginPage() {
       const biz = await withTimeout(getBusiness(), 20_000, "Таймаут загрузки салона");
       navigate(biz?.id ? from : "/onboarding", { replace: true });
     } catch (err) {
-      setError(err?.message ?? "Ошибка входа");
+      setError(formatSupabaseAuthError(err, "Ошибка входа"));
     } finally {
       setPending(false);
     }
@@ -113,7 +114,11 @@ export function LoginPage() {
               </p>
             )}
           </div>
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-600 dark:text-red-400 leading-relaxed" role="alert">
+              {error}
+            </p>
+          )}
           <Button type="submit" className="w-full justify-center" disabled={pending}>
             {pending ? "Вход…" : "Войти"}
           </Button>
@@ -166,7 +171,7 @@ export function RegisterPage() {
         setInfo("Проверьте почту: мы отправили ссылку для подтверждения email.");
       }
     } catch (err) {
-      setError(err?.message ?? "Ошибка регистрации");
+      setError(formatSupabaseAuthError(err, "Ошибка регистрации"));
     } finally {
       setPending(false);
     }
@@ -241,7 +246,11 @@ export function RegisterPage() {
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">{fieldErrors.password2}</p>
             )}
           </div>
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-600 dark:text-red-400 leading-relaxed" role="alert">
+              {error}
+            </p>
+          )}
           {info && <p className="text-sm text-emerald-600 dark:text-emerald-400">{info}</p>}
           <Button type="submit" className="w-full justify-center" disabled={pending}>
             {pending ? "Регистрация…" : "Зарегистрироваться"}

@@ -53,6 +53,7 @@ export function StatusBadge({ status }) {
     pending:   { label: "Ожидает",      color: "yellow" },
     cancelled: { label: "Отменено",     color: "red" },
     completed: { label: "Завершено",    color: "teal" },
+    no_show:   { label: "Не явился",    color: "gray" },
     "no-show": { label: "Не явился",    color: "gray" },
   };
   const { label, color } = map[status] || { label: status, color: "gray" };

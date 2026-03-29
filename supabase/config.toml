@@ -1,0 +1,8 @@
+# Конфиг Supabase CLI: https://supabase.com/docs/guides/cli/config
+# Линковка проекта: supabase link --project-ref <ref>
+
+[functions.notify-appointment-telegram]
+# verify_jwt = false: новый формат ключей Supabase (sb_publishable_...) не является JWT,
+# поэтому встроенная проверка Edge Relay отклоняет запрос с 401 ещё до входа в функцию.
+# Аутентификация выполняется внутри функции через userClient.auth.getUser(Authorization header).
+verify_jwt = false
