@@ -30,7 +30,12 @@ export function RequireBusiness({ children }) {
 
   if (authLoading || (user && bizLoading)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-900 text-gray-600 dark:text-gray-400 text-sm">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-900 text-gray-600 dark:text-gray-400 text-sm"
+      >
         Загрузка…
       </div>
     );

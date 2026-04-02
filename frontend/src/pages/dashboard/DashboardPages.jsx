@@ -12,6 +12,7 @@ import {
   PageHeader, EmptyState, LoadingState, ErrorState, ActionErrorBanner,
 } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
+import { useMinWidthMd } from "../../hooks/useMinWidthMd.js";
 import { normalizePhone } from "../../lib/phoneUtils";
 import { SAAS_BUSINESS_PROFILE_CHANGED } from "../../lib/saasEvents.js";
 import {
@@ -43,8 +44,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { data: appointments, loading, error } = useAsync(() => getAppointmentsByDate(TODAY));
 
-  if (loading) return <LoadingState />;
-  if (error)   return <ErrorState message={error.message} />;
+  if (error) return <ErrorState message={error.message} />;
 
   const todayApps = appointments ?? [];
   const revenue = todayApps.filter(a => a.status === "completed").reduce((s, a) => s + a.price, 0);
@@ -57,41 +57,47 @@ export function Dashboard() {
         subtitle={new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 items-stretch">
-        <KpiCard label="Записей сегодня" value={todayApps.length} icon="📋" trend="За сегодня" color="violet" />
-        <KpiCard label="Выручка сегодня" value={`${revenue.toLocaleString()} ₽`} icon="💰" trend="Завершённые" color="green" />
-        <KpiCard label="Ожидают подтверждения" value={todayApps.filter(a => a.status === "pending").length} icon="⏳" trend="Ожидают" color="yellow" />
-        <KpiCard label="Отменено" value={cancelled} icon="❌" trend={`Из ${todayApps.length} записей`} color="red" />
-      </div>
-
-      <Card className="p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900 dark:text-white">Расписание на сегодня</h3>
-          <Button size="sm" variant="ghost" onClick={() => navigate("/calendar")}>Открыть календарь →</Button>
-        </div>
-        {todayApps.length === 0 ? (
-          <EmptyState icon="📋" title="Нет записей" description="На сегодня записей нет" />
-        ) : (
-          <div className="space-y-2">
-            {todayApps.map(a => (
-              <div
-                key={a.id}
-                className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700/50 cursor-pointer"
-                onClick={() => navigate(`/appointments/${a.id}`)}
-              >
-                <div className="text-sm font-mono font-semibold text-gray-500 dark:text-gray-400 w-12 shrink-0">{a.time}</div>
-                <Avatar initials={(a.client_name ?? a.clientName ?? "?").split(" ").map(w => w[0]).join("")} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm text-gray-900 dark:text-white truncate">{a.client_name ?? a.clientName}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{a.service} · {(a.staff_name ?? a.staffName ?? "").split(" ")[0]}</div>
-                </div>
-                <StatusBadge status={a.status} />
-                <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">{(a.price ?? 0).toLocaleString()} ₽</div>
-              </div>
-            ))}
+      {loading ? (
+        <LoadingState />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 items-stretch">
+            <KpiCard label="Записей сегодня" value={todayApps.length} icon="📋" trend="За сегодня" color="violet" />
+            <KpiCard label="Выручка сегодня" value={`${revenue.toLocaleString()} ₽`} icon="💰" trend="Завершённые" color="green" />
+            <KpiCard label="Ожидают подтверждения" value={todayApps.filter(a => a.status === "pending").length} icon="⏳" trend="Ожидают" color="yellow" />
+            <KpiCard label="Отменено" value={cancelled} icon="❌" trend={`Из ${todayApps.length} записей`} color="red" />
           </div>
-        )}
-      </Card>
+
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Расписание на сегодня</h3>
+              <Button size="sm" variant="ghost" onClick={() => navigate("/calendar")}>Открыть календарь →</Button>
+            </div>
+            {todayApps.length === 0 ? (
+              <EmptyState icon="📋" title="Нет записей" description="На сегодня записей нет" />
+            ) : (
+              <div className="space-y-2">
+                {todayApps.map(a => (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700/50 cursor-pointer"
+                    onClick={() => navigate(`/appointments/${a.id}`)}
+                  >
+                    <div className="text-sm font-mono font-semibold text-gray-500 dark:text-gray-400 w-12 shrink-0">{a.time}</div>
+                    <Avatar initials={(a.client_name ?? a.clientName ?? "?").split(" ").map(w => w[0]).join("")} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-gray-900 dark:text-white truncate">{a.client_name ?? a.clientName}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{a.service} · {(a.staff_name ?? a.staffName ?? "").split(" ")[0]}</div>
+                    </div>
+                    <StatusBadge status={a.status} />
+                    <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">{(a.price ?? 0).toLocaleString()} ₽</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -662,6 +668,7 @@ export function AppointmentDetail() {
 // ── 2.5 Клиенты (/clients) ────────────────────────────────────
 export function ClientsPage() {
   const navigate = useNavigate();
+  const isMdUp = useMinWidthMd();
   const [search, setSearch] = useState("");
   const { data, loading, error } = useAsync(() => getClients());
 
@@ -694,27 +701,8 @@ export function ClientsPage() {
 
       {filtered.length === 0 ? (
         <EmptyState icon="👤" title="Клиенты не найдены" description="Попробуйте изменить запрос" />
-      ) : (
-        <>
-          <div className="md:hidden space-y-2">
-            {filtered.map(c => (
-              <Card key={c.id} className="p-4 cursor-pointer active:opacity-70" onClick={() => navigate(`/clients/${c.id}`)}>
-                <div className="flex items-center gap-3">
-                  <Avatar initials={c.name.split(" ").map(w => w[0]).join("")} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 dark:text-white truncate">{c.name}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{c.phone}</div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-semibold text-violet-600 dark:text-violet-400 text-sm">{(c.total_spent ?? c.totalSpent ?? 0).toLocaleString()} ₽</div>
-                    <div className="text-xs text-gray-400">{c.total_visits ?? c.totalVisits ?? 0} визитов</div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          <Card className="hidden md:block">
+      ) : isMdUp ? (
+          <Card>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-zinc-700">
@@ -750,7 +738,24 @@ export function ClientsPage() {
               </tbody>
             </table>
           </Card>
-        </>
+      ) : (
+          <div className="space-y-2">
+            {filtered.map(c => (
+              <Card key={c.id} className="p-4 cursor-pointer active:opacity-70" onClick={() => navigate(`/clients/${c.id}`)}>
+                <div className="flex items-center gap-3">
+                  <Avatar initials={c.name.split(" ").map(w => w[0]).join("")} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 dark:text-white truncate">{c.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{c.phone}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-semibold text-violet-600 dark:text-violet-400 text-sm">{(c.total_spent ?? c.totalSpent ?? 0).toLocaleString()} ₽</div>
+                    <div className="text-xs text-gray-400">{c.total_visits ?? c.totalVisits ?? 0} визитов</div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
       )}
     </div>
   );
@@ -810,10 +815,13 @@ export function ClientEditor() {
       </div>
       <Card className="p-6 max-w-lg">
         <div className="space-y-4">
-          {[["Имя", "name", "text", true], ["Телефон", "phone", "tel", true], ["Email", "email", "email", false]].map(([label, field, type, required]) => (
+          {[["Имя", "name", "text", true], ["Телефон", "phone", "tel", true], ["Email", "email", "email", false]].map(([label, field, type, required]) => {
+            const inputId = `client-new-${field}`;
+            return (
             <div key={field}>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
+              <label htmlFor={inputId} className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
               <input
+                id={inputId}
                 type={type}
                 value={form[field] ?? ""}
                 onChange={field === "phone" ? (e) => u("phone")({ ...e, target: { ...e.target, value: normalizePhone(e.target.value) } }) : u(field)}
@@ -821,10 +829,11 @@ export function ClientEditor() {
               />
               {errors[field] && <p className="text-xs text-red-500 mt-1">{errors[field]}</p>}
             </div>
-          ))}
+            );
+          })}
           <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Заметки</label>
-            <textarea value={form.notes ?? ""} onChange={u("notes")} rows={3} className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+            <label htmlFor="client-new-notes" className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Заметки</label>
+            <textarea id="client-new-notes" value={form.notes ?? ""} onChange={u("notes")} rows={3} className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
           </div>
           {saveError && (
             <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
@@ -1157,12 +1166,15 @@ export function ServiceEditor() {
             message={actionError}
             onDismiss={() => setActionError(null)}
           />
-          {fields.map(([label, field, type]) => (
+          {fields.map(([label, field, type]) => {
+            const inputId = `service-edit-${field}`;
+            return (
             <div key={field}>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+              <label htmlFor={inputId} className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
                 {label} <span className="text-red-500">*</span>
               </label>
               <input
+                id={inputId}
                 type={type}
                 value={form[field] ?? ""}
                 onChange={u(field)}
@@ -1176,7 +1188,8 @@ export function ServiceEditor() {
                 <p className="text-xs text-red-500 mt-1">{fieldErrors[field]}</p>
               )}
             </div>
-          ))}
+            );
+          })}
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Цвет в календаре</label>
             <div className="flex gap-2">

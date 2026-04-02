@@ -7,11 +7,22 @@ export function formatSupabaseAuthError(err, fallback) {
   const raw = typeof err?.message === "string" ? err.message : "";
   const m = raw.toLowerCase();
 
-  if (m.includes("email logins are disabled") || m.includes("email signup is disabled")) {
+  if (m.includes("email logins are disabled")) {
     return (
       "Вход по email в вашем проекте Supabase отключён. " +
-      "Откройте Dashboard → Authentication → Providers → Email и включите «Enable Email provider» " +
-      "(при необходимости включите и «Allow new users to sign up» для регистрации)."
+      "Откройте Dashboard → Authentication → Providers → Email и включите «Enable Email provider»."
+    );
+  }
+
+  if (
+    m.includes("email signups are disabled") ||
+    m.includes("email signup is disabled") ||
+    m.includes("signups are disabled")
+  ) {
+    return (
+      "Регистрация новых пользователей по email отключена в Supabase. " +
+      "Чтобы снова открыть форму регистрации: Dashboard → Authentication → Providers → Email → " +
+      "включите «Allow new users to sign up». Либо входите существующей учётной записью."
     );
   }
 
@@ -32,6 +43,13 @@ export function formatSupabaseAuthError(err, fallback) {
     return (
       "Email ещё не подтверждён. Проверьте почту (и спам) и перейдите по ссылке из письма. " +
       "Для локальной разработки в Supabase можно временно отключить «Confirm email» в настройках Email-провайдера."
+    );
+  }
+
+  if (m.includes("email address") && m.includes("is invalid")) {
+    return (
+      "Сервер отклонил этот email. Укажите другой адрес: часто блокируются домены вроде example.com / test.com, " +
+      "символ «+» в локальной части (user+tag@…) или одноразовые почтовые сервисы. Используйте обычный ящик на Gmail, Mail.ru и т.п."
     );
   }
 
