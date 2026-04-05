@@ -30,7 +30,7 @@
 
 ## Edge Functions (`supabase/functions/`)
 
-- **`notify-appointment-telegram`** — после создания записи SPA вызывает `supabase.functions.invoke`; функция проверяет JWT, по `appointment_id` читает строку через service role и убеждается, что `businesses.user_id` совпадает с пользователем, затем шлёт сообщение в Telegram Bot API. Секреты (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`; при локальном `serve` ещё `SUPABASE_SERVICE_ROLE_KEY`) не попадают во фронт; см. `frontend/.env.example` и `supabase/.env.functions.example`. Локальный прогон: из корня `npm run supabase:start` (Docker), затем `npm run functions:serve`.
+- **`notify-appointment-telegram`** — после создания записи SPA вызывает `supabase.functions.invoke`; функция проверяет JWT, по `appointment_id` читает строку через service role и убеждается, что `businesses.user_id` совпадает с пользователем, затем шлёт сообщение в Telegram Bot API. Секреты (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`; при локальном `serve` ещё `SUPABASE_SERVICE_ROLE_KEY`) не попадают во фронт; см. `frontend/.env.example` и `supabase/.env.functions.example`. **В продакшене** для CORS задай секрет **`ALLOWED_ORIGINS`** (URL фронта, без `/` в конце) — пошагово: `docs/deploy-edge-functions.md`. Локальный прогон: из корня `npm run supabase:start` (Docker), затем `npm run functions:serve`.
 
 ## Flow
 

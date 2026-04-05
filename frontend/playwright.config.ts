@@ -36,8 +36,13 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: "npm run dev",
+    cwd: path.join(__dirname, ".."),
     url: "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      ...process.env,
+      SKIP_AUTH_RATE_LIMIT: "1",
+    },
   },
 });

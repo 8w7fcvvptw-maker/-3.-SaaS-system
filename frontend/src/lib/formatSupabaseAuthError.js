@@ -4,6 +4,11 @@
  * @param {string} fallback
  */
 export function formatSupabaseAuthError(err, fallback) {
+  if (err?.code === "rate_limit" || err?.status === 429) {
+    return typeof err?.message === "string" && err.message.trim()
+      ? err.message
+      : "Слишком много попыток за 15 минут. Подождите и попробуйте снова.";
+  }
   const raw = typeof err?.message === "string" ? err.message : "";
   const m = raw.toLowerCase();
 

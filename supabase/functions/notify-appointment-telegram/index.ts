@@ -1,10 +1,56 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+function normalizeOrigin(origin: string): string {
+  return origin.replace(/\/$/, "");
+}
+
+/** Список origin через запятую в ALLOWED_ORIGINS (секреты Edge Function). Без слеша в конце. */
+function getAllowedOrigins(): string[] {
+  const raw = Deno.env.get("ALLOWED_ORIGINS")?.trim();
+  if (raw) {
+    return raw
+      .split(",")
+      .map((s) => normalizeOrigin(s.trim()))
+      .filter(Boolean);
+  }
+  return [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+  ];
+}
+
+function getCorsHeaders(req: Request): {
+  cors: Record<string, string> | null;
+  originForbidden: boolean;
+} {
+  const origin = req.headers.get("Origin");
+  if (!origin) {
+    return { cors: null, originForbidden: false };
+  }
+  const normalized = normalizeOrigin(origin);
+  const allowed = getAllowedOrigins();
+  if (!allowed.includes(normalized)) {
+    return { cors: null, originForbidden: true };
+  }
+  return {
+    cors: {
+      "Access-Control-Allow-Origin": normalized,
+      "Access-Control-Allow-Headers":
+        "authorization, x-client-info, apikey, content-type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      Vary: "Origin",
+    },
+    originForbidden: false,
+  };
+}
+
+function mergeJsonHeaders(
+  cors: Record<string, string> | null,
+): Record<string, string> {
+  const base: Record<string, string> = { "Content-Type": "application/json" };
+  return cors ? { ...cors, ...base } : base;
+}
 
 function maskToken(token: string): string {
   if (!token || token.length <= 8) return "***";
@@ -37,14 +83,26 @@ function summarizeTelegramApiBodyForLog(parsed: Record<string, unknown>) {
 }
 
 Deno.serve(async (req) => {
+  const { cors, originForbidden } = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    if (originForbidden || !cors) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    return new Response(null, { status: 204, headers: cors });
   }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
+    });
+  }
+
+  if (originForbidden) {
+    return new Response(JSON.stringify({ error: "Forbidden origin" }), {
+      status: 403,
+      headers: mergeJsonHeaders(null),
     });
   }
 
@@ -52,7 +110,7 @@ Deno.serve(async (req) => {
   if (!authHeader?.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 
@@ -64,7 +122,7 @@ Deno.serve(async (req) => {
     console.error("[notify-appointment-telegram] missing Supabase env");
     return new Response(JSON.stringify({ error: "Server misconfigured" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 
@@ -78,7 +136,7 @@ Deno.serve(async (req) => {
   if (userErr || !user) {
     return new Response(JSON.stringify({ error: "Invalid token" }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 
@@ -88,7 +146,7 @@ Deno.serve(async (req) => {
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {
       status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 
@@ -97,7 +155,7 @@ Deno.serve(async (req) => {
   if (rawId == null || Number.isNaN(appointmentId) || appointmentId <= 0) {
     return new Response(JSON.stringify({ error: "appointment_id required" }), {
       status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 
@@ -115,14 +173,14 @@ Deno.serve(async (req) => {
     });
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 
   if (!row) {
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 
@@ -140,14 +198,14 @@ Deno.serve(async (req) => {
     });
     return new Response(JSON.stringify({ error: "Business not found" }), {
       status: 404,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 
   if (!biz?.user_id || biz.user_id !== user.id) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 
@@ -165,7 +223,7 @@ Deno.serve(async (req) => {
         reason: "missing_telegram_secrets",
         missing,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { headers: mergeJsonHeaders(cors) },
     );
   }
 
@@ -254,7 +312,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   } catch (err) {
     console.error("[notify-appointment-telegram] sendMessage failed", {
@@ -264,7 +322,7 @@ Deno.serve(async (req) => {
     });
     return new Response(JSON.stringify({ ok: false, error: "telegram_failed" }), {
       status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: mergeJsonHeaders(cors),
     });
   }
 });

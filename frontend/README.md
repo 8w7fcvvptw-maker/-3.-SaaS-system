@@ -25,7 +25,7 @@ cp .env.example .env
 
 ```
 VITE_SUPABASE_URL=https://xxxxxxxxxxxxxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_SUPABASE_ANON_KEY=<вставьте anon public key из Dashboard, без кавычек>
 ```
 
 Эти значения находятся в панели Supabase:  

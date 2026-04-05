@@ -2,6 +2,54 @@ import { supabase } from './supabase.js';
 import { ApiError } from './errors.js';
 import { assertEmail, assertPassword } from './validation.js';
 
+/** В браузере по умолчанию вход/регистрация идут через POST /api/auth/* (rate limit). Отключить: VITE_USE_AUTH_API=false */
+function useAuthHttpApi() {
+  return (
+    typeof window !== 'undefined' &&
+    import.meta.env?.VITE_USE_AUTH_API !== 'false'
+  );
+}
+
+/** @param {string} path `/api/auth/login` или `/api/auth/register` */
+async function postAuth(path, email, password) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  let body = {};
+  try {
+    body = await res.json();
+  } catch (_) {}
+  if (res.status === 429) {
+    throw new ApiError(
+      body.message ||
+        'Слишком много попыток за 15 минут. Подождите и попробуйте снова.',
+      { code: 'rate_limit', status: 429 },
+    );
+  }
+  if (!res.ok) {
+    throw new ApiError(body.message || 'Ошибка запроса', {
+      code: body.code || 'auth_failed',
+      status: res.status,
+      field: body.field,
+    });
+  }
+  if (body.session?.access_token && body.session?.refresh_token) {
+    const { error } = await supabase.auth.setSession({
+      access_token: body.session.access_token,
+      refresh_token: body.session.refresh_token,
+    });
+    if (error) {
+      throw new ApiError(error.message || 'Не удалось установить сессию', {
+        code: 'auth_failed',
+        status: 401,
+      });
+    }
+  }
+  return { session: body.session ?? null, user: body.user ?? null };
+}
+
 /** Регистрация email + пароль (хеш и хранение — только Supabase Auth). */
 export async function registerWithEmail(email, password) {
   return signUpWithEmail(email, password);
@@ -21,17 +69,23 @@ export async function getSession() {
 }
 
 export async function signInWithEmail(email, password) {
-  assertEmail(email);
-  assertPassword(password);
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const e = assertEmail(email);
+  const p = assertPassword(password);
+  if (useAuthHttpApi()) {
+    return postAuth('/api/auth/login', e, p);
+  }
+  const { data, error } = await supabase.auth.signInWithPassword({ email: e, password: p });
   if (error) throw new ApiError(error.message || 'Не удалось войти', { code: 'auth_failed', status: 401 });
   return data;
 }
 
 export async function signUpWithEmail(email, password) {
-  assertEmail(email);
-  assertPassword(password);
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const e = assertEmail(email);
+  const p = assertPassword(password);
+  if (useAuthHttpApi()) {
+    return postAuth('/api/auth/register', e, p);
+  }
+  const { data, error } = await supabase.auth.signUp({ email: e, password: p });
   if (error) {
     throw new ApiError(error.message || 'Не удалось зарегистрироваться', { code: 'signup_failed', status: 400 });
   }
