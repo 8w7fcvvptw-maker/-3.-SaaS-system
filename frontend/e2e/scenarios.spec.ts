@@ -9,7 +9,8 @@ function uniquePhone() {
 }
 
 test.describe.serial("SaaS E2E — сценарии по порядку", () => {
-  test.describe.configure({ timeout: 90_000 });
+  /** Вход + Supabase + несколько шагов UI часто > 90 с на медленной сети. */
+  test.describe.configure({ timeout: 180_000 });
 
   test.describe("1. Регистрация пользователя", () => {
     /**
@@ -80,7 +81,10 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
       await page.getByLabel(/^Телефон/).fill(phone);
       await page.getByRole("button", { name: "Сохранить" }).click();
 
-      await page.waitForURL("**/clients", { timeout: 60_000 });
+      await page.waitForURL((url) => /\/clients\/?$/.test(url.pathname) && !url.pathname.includes("/new"), {
+        timeout: 90_000,
+        waitUntil: "commit",
+      });
       await expect(page.getByText(name, { exact: true })).toBeVisible();
     });
   });

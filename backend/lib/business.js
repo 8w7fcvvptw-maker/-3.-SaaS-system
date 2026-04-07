@@ -19,9 +19,8 @@ export function clearBusinessCache() {
   cachedOwnerBusinessUserId = null;
 }
 
-/** Просмотр карточки по slug — только для вошедшего владельца (RLS отдаёт только свою строку). */
+/** Публичная карточка по slug (anon + владелец; user_id из ответа убираем). */
 export async function getBusinessBySlug(slug) {
-  await requireSession();
   if (slug == null || String(slug).trim() === '') {
     throw new ApiError('Не указан адрес салона (slug)', { field: 'slug', code: 'validation_error', status: 400 });
   }
@@ -33,7 +32,9 @@ export async function getBusinessBySlug(slug) {
     .eq('status', 'active')
     .maybeSingle();
   if (error) throwOnError({ data: null, error });
-  return data ?? null;
+  if (!data || typeof data !== 'object') return null;
+  const { user_id: _omitUserId, ...rest } = data;
+  return rest;
 }
 
 /** Кабинет: без аргумента (только своя запись). Публично: строка slug. */

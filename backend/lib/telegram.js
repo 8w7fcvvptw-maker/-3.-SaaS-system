@@ -35,23 +35,36 @@ export async function notifyNewAppointmentCreated(appointment) {
     return;
   }
 
-  // getSession читает из localStorage — не делает сетевой запрос.
   const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token;
-  if (!token) {
-    console.warn('[telegram] пропуск: нет access_token в сессии', { appointmentId: id });
+  const sessionToken = sessionData?.session?.access_token;
+  const anonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+  const bearer = sessionToken || anonKey;
+  const slug =
+    appointment?.slug != null && String(appointment.slug).trim() !== ''
+      ? String(appointment.slug).trim().toLowerCase()
+      : null;
+
+  if (!bearer) {
+    console.warn('[telegram] пропуск: нет токена и anon key', { appointmentId: id });
+    return;
+  }
+  if (!sessionToken && !slug) {
+    console.warn('[telegram] пропуск: публичная запись без slug для Edge Function', { appointmentId: id });
     return;
   }
 
   try {
-    console.info('[telegram] invoke', { function: FUNCTION_NAME, appointmentId: id });
-    // supabase.functions — геттер, каждый раз новый экземпляр FunctionsClient.
-    // Получаем его один раз, ставим токен и вызываем invoke на том же объекте.
-    const fnClient = supabase.functions;
-    fnClient.setAuth(token);
-    const { data, error } = await fnClient.invoke(FUNCTION_NAME, {
-      body: { appointment_id: id },
+    console.info('[telegram] invoke', {
+      function: FUNCTION_NAME,
+      appointmentId: id,
+      publicSlug: Boolean(slug && !sessionToken),
     });
+    const fnClient = supabase.functions;
+    fnClient.setAuth(bearer);
+    const body = sessionToken
+      ? { appointment_id: id }
+      : { appointment_id: id, slug };
+    const { data, error } = await fnClient.invoke(FUNCTION_NAME, { body });
 
     if (error) {
       console.error('[telegram] Edge Function invoke failed', {

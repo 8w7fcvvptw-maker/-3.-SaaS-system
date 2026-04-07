@@ -39,8 +39,26 @@ async function resolveBusinessId(explicitBusinessId) {
   return ownerBid;
 }
 
+async function resolveBusinessIdForRead(explicitBusinessId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) {
+    if (explicitBusinessId != null && String(explicitBusinessId).trim() !== '') {
+      return assertId(Number(explicitBusinessId), 'business_id');
+    }
+    throw new ApiError('Не указан салон', { field: 'business_id', code: 'validation_error', status: 400 });
+  }
+  try {
+    return await resolveBusinessId(explicitBusinessId);
+  } catch (e) {
+    if (e?.code === 'no_business' && explicitBusinessId != null && String(explicitBusinessId).trim() !== '') {
+      return assertId(Number(explicitBusinessId), 'business_id');
+    }
+    throw e;
+  }
+}
+
 export async function getStaff(businessId) {
-  const bid = await resolveBusinessId(businessId);
+  const bid = await resolveBusinessIdForRead(businessId);
   return throwOnError(
     await supabase.from('staff').select('*').eq('business_id', bid).order('name')
   );

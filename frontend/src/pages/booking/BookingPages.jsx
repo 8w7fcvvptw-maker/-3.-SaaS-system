@@ -9,7 +9,7 @@ import BookingLayout from "../../layouts/BookingLayout";
 import { Button, Card, StarRating, Avatar, LoadingState, ErrorState } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
 import { useBooking } from "../../context/BookingContext";
-import { getActiveServices, getStaff, getTimeSlots, getBusySlots, createAppointment } from "../../lib/api";
+import { getActiveServices, getStaff, getTimeSlots, getBusySlots, createPublicAppointment } from "../../lib/api";
 import { normalizePhone } from "../../lib/phoneUtils";
 
 function escapeIcsText(value) {
@@ -311,9 +311,9 @@ export function DateTimeSelection() {
 
   const { data: slots, loading: slotsLoading, error: slotsError } = useAsync(() => getTimeSlots());
   const { data: busy, loading: busyLoading, error: busyError } = useAsync(
-    () => getBusySlots(selectedDateIso, booking.staff?.id, businessId),
+    () => getBusySlots(selectedDateIso, booking.staff?.id, businessId, slug),
     true,
-    [selectedDateIso, booking.staff?.id, businessId]
+    [selectedDateIso, booking.staff?.id, businessId, slug]
   );
 
   const loading = slotsLoading || busyLoading;
@@ -446,7 +446,7 @@ export function ClientDetails() {
 // ── 6. Подтверждение (/book/confirm) ──────────────────────────
 export function BookingConfirm() {
   const navigate = useNavigate();
-  const { booking, resetBooking, business, businessId, slug } = useBooking();
+  const { booking, resetBooking, businessId, slug } = useBooking();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
@@ -465,7 +465,8 @@ export function BookingConfirm() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await createAppointment({
+      await createPublicAppointment({
+        slug,
         client_name: clientName || "Клиент",
         client_phone: clientPhone || "",
         client_email: clientEmail || "",
@@ -475,9 +476,7 @@ export function BookingConfirm() {
         time: time || "10:00",
         duration,
         price,
-        status: "pending",
         notes: notes || null,
-        business_id: businessId,
       });
       resetBooking();
       navigate(`/book/${slug}/success`, {

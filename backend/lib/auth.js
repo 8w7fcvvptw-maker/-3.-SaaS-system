@@ -120,6 +120,7 @@ export function onAuthStateChange(callback) {
 
 /** Служебно: войти тестовым пользователем (интеграционные тесты) */
 export async function signInTestUser() {
+  if (import.meta.env?.PROD) return false;
   const email = import.meta.env?.VITE_TEST_USER_EMAIL;
   const password = import.meta.env?.VITE_TEST_USER_PASSWORD;
   if (!email || !password) return false;

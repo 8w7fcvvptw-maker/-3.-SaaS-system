@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
 import { getOwnerBusinessId } from './business.js';
 import { ApiError } from './errors.js';
-import { assertDateIso, assertId } from './validation.js';
+import { assertDateIso, assertId, assertSlug } from './validation.js';
 
 const DEFAULT_SLOTS = Array.from({ length: 49 }, (_, i) => {
   const h = 9 + Math.floor((i * 15) / 60);
@@ -20,18 +20,29 @@ export async function getTimeSlots() {
  * Занятые слоты на дату (и опционально мастера).
  * @param {string} date — YYYY-MM-DD
  * @param {number|null|undefined} staffId
- * @param {number|null|undefined} businessId — для публичной записи; иначе RLS отфильтрует в кабинете
+ * @param {number|null|undefined} businessId
+ * @param {string|null|undefined} publicSlug — для гостя: RPC get_public_busy_slot_times (нужна миграция 005)
  */
-export async function getBusySlots(date, staffId, businessId) {
+export async function getBusySlots(date, staffId, businessId, publicSlug = null) {
   if (!date) return [];
   assertDateIso(date, 'date');
 
   if (businessId != null) {
     const bid = assertId(Number(businessId), 'business_id');
-    const { data: sess } = await supabase.auth.getSession();
-    if (!sess?.session) {
+    if (publicSlug != null && String(publicSlug).trim() !== '') {
+      const s = assertSlug(String(publicSlug).trim().toLowerCase(), 'slug');
+      const { data, error } = await supabase.rpc('get_public_busy_slot_times', {
+        p_slug: s,
+        p_date: date,
+        p_staff_id: staffId != null ? assertId(Number(staffId), 'staff_id') : null,
+      });
+      if (!error && data != null) {
+        return data.map((r) => r.slot_time ?? r.time).filter(Boolean);
+      }
       return [];
     }
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess?.session) return [];
     const ownerBid = await getOwnerBusinessId();
     if (bid !== ownerBid) {
       throw new ApiError('Нет доступа к указанному салону', {

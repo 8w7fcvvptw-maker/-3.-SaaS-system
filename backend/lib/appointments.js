@@ -15,6 +15,7 @@ import {
   optionalString,
   assertPositiveInt,
   assertNonNegativeNumber,
+  assertSlug,
 } from './validation.js';
 import { notifyNewAppointmentCreated } from './telegram.js';
 
@@ -363,6 +364,50 @@ export async function createAppointment(data) {
     supabase.from('appointments').insert(insertData).select(sel).single()
   );
   const created = mapAppointmentRow(throwOnError(res));
+  await notifyNewAppointmentCreated(created);
+  return created;
+}
+
+/** Публичная онлайн-запись (RPC `create_public_appointment`, миграция 005). */
+export async function createPublicAppointment(payload) {
+  const slug = assertSlug(String(payload?.slug ?? '').trim().toLowerCase(), 'slug');
+  const client_name = assertNonEmptyString(
+    payload?.client_name ?? payload?.clientName,
+    'client_name',
+    200
+  );
+  const client_phone = assertPhone(payload?.client_phone ?? payload?.clientPhone, 'client_phone');
+  const client_email = optionalEmail(payload?.client_email ?? payload?.clientEmail, 'client_email');
+  const service_id = payload?.service_id ?? payload?.service?.id;
+  const staff_id = payload?.staff_id ?? payload?.staff?.id;
+  const dateStr = assertDateIso(payload?.date, 'date');
+  const timeStr = assertTimeSlot(payload?.time, 'time');
+  const duration = assertPositiveInt(payload?.duration ?? 30, 'duration');
+  const price = assertNonNegativeNumber(payload?.price ?? 0, 'price');
+  const notes = optionalString(payload?.notes, 'notes', 5000);
+
+  const { data: newId, error } = await supabase.rpc('create_public_appointment', {
+    p_slug: slug,
+    p_client_name: client_name,
+    p_client_phone: client_phone,
+    p_client_email: client_email,
+    p_service_id: service_id == null ? null : assertId(Number(service_id), 'service_id'),
+    p_staff_id: staff_id == null || staff_id === '' ? null : assertId(Number(staff_id), 'staff_id'),
+    p_date: dateStr,
+    p_time: timeStr,
+    p_duration: duration,
+    p_price: price,
+    p_notes: notes,
+  });
+
+  if (error) {
+    throw new ApiError(error.message || 'Не удалось создать запись', {
+      code: 'validation_error',
+      status: 400,
+    });
+  }
+
+  const created = { id: newId, slug };
   await notifyNewAppointmentCreated(created);
   return created;
 }

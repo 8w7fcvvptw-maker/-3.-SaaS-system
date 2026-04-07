@@ -106,10 +106,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
+  let body: { appointment_id?: unknown; slug?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
       headers: mergeJsonHeaders(cors),
     });
   }
@@ -126,29 +128,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const {
-    data: { user },
-    error: userErr,
-  } = await userClient.auth.getUser();
-  if (userErr || !user) {
-    return new Response(JSON.stringify({ error: "Invalid token" }), {
-      status: 401,
-      headers: mergeJsonHeaders(cors),
-    });
-  }
-
-  let body: { appointment_id?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: mergeJsonHeaders(cors),
-    });
-  }
+  const authHeader = req.headers.get("Authorization") ?? "";
 
   const rawId = body?.appointment_id;
   const appointmentId = typeof rawId === "number" ? rawId : Number(rawId);
@@ -202,7 +182,24 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (!biz?.user_id || biz.user_id !== user.id) {
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const {
+    data: { user },
+  } = await userClient.auth.getUser();
+
+  const slugBody = typeof body?.slug === "string"
+    ? body.slug.trim().toLowerCase()
+    : "";
+  const slugBiz = (biz?.slug ?? "").trim().toLowerCase();
+
+  const ownerOk = Boolean(user?.id && biz?.user_id && biz.user_id === user.id);
+  const publicOk = Boolean(
+    slugBody && slugBiz && slugBody === slugBiz,
+  );
+
+  if (!ownerOk && !publicOk) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: mergeJsonHeaders(cors),

@@ -8,9 +8,9 @@ import { BookingProvider } from "../context/BookingContext.jsx";
 function bookingLoadMessage(error) {
   const m = error?.message ?? "";
   if (error?.code === "auth_required" || /Требуется войти/i.test(m)) {
-    return "Войдите в аккаунт владельца салона, чтобы открыть страницу записи (данные недоступны без входа).";
+    return "Не удалось загрузить данные салона. Проверьте ссылку или попробуйте позже.";
   }
-  return m || "Салон не найден или slug не совпадает с вашим бизнесом.";
+  return m || "Салон не найден. Проверьте адрес в ссылке.";
 }
 
 export default function BookingFlowLayout() {
@@ -29,17 +29,14 @@ export default function BookingFlowLayout() {
     );
   }
   if (error || !business?.id) {
-    const needLogin = error?.code === "auth_required" || /Требуется войти/i.test(error?.message ?? "");
     return (
       <BookingLayout>
         <ErrorState message={bookingLoadMessage(error)} />
-        {needLogin && (
-          <p className="text-center mt-4 text-sm text-violet-600 dark:text-violet-400">
-            <Link to="/login" className="font-medium underline">
-              Перейти ко входу
-            </Link>
-          </p>
-        )}
+        <p className="text-center mt-4 text-sm text-gray-500 dark:text-zinc-400">
+          <Link to="/login" className="font-medium text-violet-600 dark:text-violet-400 underline">
+            Вход для владельца
+          </Link>
+        </p>
       </BookingLayout>
     );
   }

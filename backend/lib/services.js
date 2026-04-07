@@ -28,16 +28,35 @@ async function resolveBusinessId(explicitBusinessId) {
   return ownerBid;
 }
 
+/** Витрина: владелец — только свой salon; гость / пользователь без бизнеса — по business_id (RLS anon). */
+async function resolveBusinessIdForRead(explicitBusinessId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) {
+    if (explicitBusinessId != null && String(explicitBusinessId).trim() !== '') {
+      return assertId(Number(explicitBusinessId), 'business_id');
+    }
+    throw new ApiError('Не указан салон', { field: 'business_id', code: 'validation_error', status: 400 });
+  }
+  try {
+    return await resolveBusinessId(explicitBusinessId);
+  } catch (e) {
+    if (e?.code === 'no_business' && explicitBusinessId != null && String(explicitBusinessId).trim() !== '') {
+      return assertId(Number(explicitBusinessId), 'business_id');
+    }
+    throw e;
+  }
+}
+
 /** @param {number|undefined} businessId — только id своего салона */
 export async function getServices(businessId) {
-  const bid = await resolveBusinessId(businessId);
+  const bid = await resolveBusinessIdForRead(businessId);
   return throwOnError(
     await supabase.from('services').select('*').eq('business_id', bid).order('name')
   );
 }
 
 export async function getActiveServices(businessId) {
-  const bid = await resolveBusinessId(businessId);
+  const bid = await resolveBusinessIdForRead(businessId);
   return throwOnError(
     await supabase.from('services').select('*').eq('business_id', bid).eq('active', true).order('name')
   );

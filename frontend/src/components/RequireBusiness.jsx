@@ -6,7 +6,8 @@ import { SAAS_BUSINESS_PROFILE_CHANGED } from "../lib/saasEvents.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { withTimeout } from "../lib/withTimeout.js";
 
-const BIZ_LOAD_MS = 20_000;
+/** Сеть / Supabase могут отвечать дольше; E2E и прод согласованы с ожиданием дашборда (~45 с). */
+const BIZ_LOAD_MS = 45_000;
 
 /** После входа без строки в businesses — на /onboarding */
 export function RequireBusiness({ children }) {
