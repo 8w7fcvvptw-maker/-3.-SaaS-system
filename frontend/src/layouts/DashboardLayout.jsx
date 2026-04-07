@@ -50,12 +50,12 @@ export default function DashboardLayout({ children }) {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-zinc-900 overflow-hidden">
+    <div className="flex h-screen bg-zinc-50/80 dark:bg-zinc-950 overflow-hidden">
 
       {/* ════════════════════════════════════
           ДЕСКТОП: боковая панель (скрыта на мобильном)
       ════════════════════════════════════ */}
-      <aside className="hidden md:flex w-56 bg-white dark:bg-zinc-800 border-r border-gray-200 dark:border-zinc-700 flex-col shrink-0">
+      <aside className="hidden md:flex w-56 bg-white dark:bg-zinc-900 border-r border-gray-200/90 dark:border-zinc-800 flex-col shrink-0">
 
         <div className="p-4 border-b border-gray-200 dark:border-zinc-700">
           <div className="flex items-center gap-2">
@@ -78,8 +78,8 @@ export default function DashboardLayout({ children }) {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                       isActive
-                        ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
-                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-700 hover:text-gray-900 dark:hover:text-white"
+                        ? "bg-slate-100 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 font-medium"
+                        : "text-gray-600 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-zinc-800/80 hover:text-gray-900 dark:hover:text-white"
                     }`
                   }
                 >
@@ -108,7 +108,7 @@ export default function DashboardLayout({ children }) {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Шапка */}
-        <header className="bg-white dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between shrink-0">
+        <header className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border-b border-gray-200/90 dark:border-zinc-800 px-4 py-3.5 flex items-center justify-between shrink-0">
           {/* Логотип на мобильном */}
           <div className="flex items-center gap-2 md:hidden">
             <span className="text-xl">✂️</span>
@@ -137,12 +137,12 @@ export default function DashboardLayout({ children }) {
               {notificationsOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setNotificationsOpen(false)} aria-hidden="true" />
-                  <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-zinc-900 border border-gray-200/90 dark:border-zinc-800 rounded-xl shadow-sm z-50 overflow-hidden">
                     <div className="p-3 border-b border-gray-100 dark:border-zinc-700 flex items-center justify-between">
                       <span className="font-semibold text-gray-900 dark:text-white text-sm">Уведомления</span>
                       <button
                         onClick={() => { setNotificationsOpen(false); navigate("/messages"); }}
-                        className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                        className="text-xs text-slate-700 dark:text-zinc-300 hover:underline"
                       >
                         Все →
                       </button>
@@ -155,7 +155,7 @@ export default function DashboardLayout({ children }) {
                       ].map((n) => (
                         <div
                           key={n.id}
-                          className={`px-3 py-2.5 text-sm border-b border-gray-50 dark:border-zinc-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-zinc-700/50 cursor-pointer ${n.unread ? "bg-violet-50/50 dark:bg-violet-900/10" : ""}`}
+                          className={`px-3 py-2.5 text-sm border-b border-gray-50 dark:border-zinc-800/80 last:border-0 hover:bg-gray-50/80 dark:hover:bg-zinc-800/50 cursor-pointer ${n.unread ? "bg-slate-50/80 dark:bg-zinc-800/40" : ""}`}
                           onClick={() => setNotificationsOpen(false)}
                         >
                           <div className="text-gray-900 dark:text-white">{n.text}</div>
@@ -177,7 +177,7 @@ export default function DashboardLayout({ children }) {
               {accountMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setAccountMenuOpen(false)} aria-hidden="true" />
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 border border-gray-200/90 dark:border-zinc-800 rounded-xl shadow-sm z-50 overflow-hidden">
                     <div className="px-3 py-2 border-b border-gray-100 dark:border-zinc-700">
                       <div className="font-medium text-gray-900 dark:text-white text-sm">Аккаунт</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 truncate" title={userEmail}>
@@ -213,7 +213,7 @@ export default function DashboardLayout({ children }) {
         </header>
 
         {/* Контент — на мобильном оставляет место под нижнюю панель */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-20 md:pb-8">
           {children}
         </main>
       </div>
@@ -221,7 +221,7 @@ export default function DashboardLayout({ children }) {
       {/* ════════════════════════════════════
           МОБИЛЬНЫЙ: нижняя навигация
       ════════════════════════════════════ */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-800 border-t border-gray-200 dark:border-zinc-700 z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border-t border-gray-200/90 dark:border-zinc-800 z-50">
         <div className="flex">
           {/* 4 основных пункта */}
           {mobileBottomNav.map((item) => (
@@ -231,8 +231,8 @@ export default function DashboardLayout({ children }) {
               className={({ isActive }) =>
                 `flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition-colors ${
                   isActive
-                    ? "text-indigo-600 dark:text-indigo-400"
-                    : "text-gray-400 dark:text-gray-500"
+                    ? "text-slate-900 dark:text-zinc-100"
+                    : "text-gray-400 dark:text-zinc-500"
                 }`
               }
             >
@@ -277,8 +277,8 @@ export default function DashboardLayout({ children }) {
                   className={({ isActive }) =>
                     `flex flex-col items-center gap-1 p-3 rounded-xl text-xs transition-colors ${
                       isActive
-                        ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
-                        : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-700"
+                        ? "bg-slate-100 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
+                        : "text-gray-600 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800/80"
                     }`
                   }
                 >

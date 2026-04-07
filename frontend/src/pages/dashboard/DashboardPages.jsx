@@ -61,7 +61,7 @@ export function Dashboard() {
         <LoadingState />
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 items-stretch">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5 mb-8 items-stretch">
             <KpiCard label="Записей сегодня" value={todayApps.length} icon="📋" trend="За сегодня" color="violet" />
             <KpiCard label="Выручка сегодня" value={`${revenue.toLocaleString()} ₽`} icon="💰" trend="Завершённые" color="green" />
             <KpiCard label="Ожидают подтверждения" value={todayApps.filter(a => a.status === "pending").length} icon="⏳" trend="Ожидают" color="yellow" />
@@ -80,7 +80,7 @@ export function Dashboard() {
                 {todayApps.map(a => (
                   <div
                     key={a.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700/50 cursor-pointer"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200/80 dark:border-zinc-700/80 hover:bg-gray-50/80 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors"
                     onClick={() => navigate(`/appointments/${a.id}`)}
                   >
                     <div className="text-sm font-mono font-semibold text-gray-500 dark:text-gray-400 w-12 shrink-0">{a.time}</div>
@@ -137,7 +137,7 @@ export function CalendarPage() {
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`px-3 py-1.5 text-sm transition-colors cursor-pointer ${view === v ? "bg-violet-600 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-700"}`}
+                className={`px-3 py-1.5 text-sm transition-colors cursor-pointer ${view === v ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-700"}`}
               >
                 {v === "day" ? "День" : "Неделя"}
               </button>
@@ -150,7 +150,7 @@ export function CalendarPage() {
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
         <button
           onClick={() => setSelectedStaff("all")}
-          className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${selectedStaff === "all" ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600 hover:border-violet-300"}`}
+          className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${selectedStaff === "all" ? "bg-slate-900 text-white border-slate-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600 hover:border-slate-400 dark:hover:border-zinc-500"}`}
         >
           Все мастера
         </button>
@@ -158,9 +158,9 @@ export function CalendarPage() {
           <button
             key={s.id}
             onClick={() => setSelectedStaff(String(s.id))}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${selectedStaff === String(s.id) ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600 hover:border-violet-300"}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${selectedStaff === String(s.id) ? "bg-slate-900 text-white border-slate-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600 hover:border-slate-400 dark:hover:border-zinc-500"}`}
           >
-            <span className="w-5 h-5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded-full flex items-center justify-center text-xs">{(s.avatar ?? s.name)[0]}</span>
+            <span className="w-5 h-5 bg-slate-100 text-slate-800 dark:bg-zinc-800 dark:text-zinc-200 rounded-full flex items-center justify-center text-xs">{(s.avatar ?? s.name)[0]}</span>
             {s.name.split(" ")[0]}
           </button>
         ))}
@@ -183,17 +183,23 @@ export function CalendarPage() {
 
             {displayApps.map(a => {
               const colors = {
-                confirmed: "bg-violet-100 border-violet-400 text-violet-900",
-                pending:   "bg-yellow-100 border-yellow-400 text-yellow-900",
-                cancelled: "bg-red-100 border-red-300 text-red-700 opacity-60",
-                completed: "bg-teal-100 border-teal-400 text-teal-900",
-                no_show: "bg-orange-100 border-orange-300 text-orange-800",
-                "no-show": "bg-orange-100 border-orange-300 text-orange-800",
+                confirmed:
+                  "bg-slate-50/95 text-slate-800 border-l-slate-400/55 dark:bg-zinc-800/75 dark:text-zinc-100 dark:border-l-zinc-500/70",
+                pending:
+                  "bg-amber-50/90 text-amber-950 border-l-amber-400/40 dark:bg-amber-950/25 dark:text-amber-100 dark:border-l-amber-600/45",
+                cancelled:
+                  "bg-red-50/70 text-red-800/90 border-l-red-300/45 dark:bg-red-950/20 dark:text-red-300/95 dark:border-l-red-900/45",
+                completed:
+                  "bg-emerald-50/85 text-emerald-900 border-l-emerald-400/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-l-emerald-700/45",
+                no_show:
+                  "bg-stone-50/90 text-stone-800 border-l-stone-400/45 dark:bg-zinc-800/70 dark:text-zinc-300 dark:border-l-zinc-600/60",
+                "no-show":
+                  "bg-stone-50/90 text-stone-800 border-l-stone-400/45 dark:bg-zinc-800/70 dark:text-zinc-300 dark:border-l-zinc-600/60",
               };
               return (
                 <div
                   key={a.id}
-                  className={`absolute left-2 right-2 rounded-lg border-l-4 px-2 py-1 cursor-pointer hover:shadow-md transition-shadow text-xs ${colors[a.status] ?? "bg-gray-100 border-gray-300"}`}
+                  className={`absolute left-2 right-2 rounded-md border-l-[3px] px-2 py-1 cursor-pointer hover:shadow-sm transition-shadow text-xs ${colors[a.status] ?? "bg-gray-50/90 text-gray-900 border-l-gray-300/60 dark:bg-zinc-800/80 dark:text-zinc-100 dark:border-l-zinc-600"}`}
                   style={{ top: `${getTop(a.time)}px`, height: `${getHeight(a.duration) - 4}px` }}
                   onClick={() => navigate(`/appointments/${a.id}`)}
                 >
@@ -301,19 +307,19 @@ export function AppointmentEditor() {
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Имя клиента <span className="text-red-500">*</span></label>
             <input type="text" value={form.client_name} onChange={u("client_name")} placeholder="Иван Петров"
-              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.client_name ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`} />
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.client_name ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-slate-400/70"}`} />
             {errors.client_name && <p className="text-xs text-red-500 mt-1">{errors.client_name}</p>}
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Телефон <span className="text-red-500">*</span></label>
             <input type="tel" value={form.client_phone} onChange={(e) => u("client_phone")({ ...e, target: { ...e.target, value: normalizePhone(e.target.value) } })} placeholder="+7 (999) 000-00-00"
-              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.client_phone ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`} />
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.client_phone ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-slate-400/70"}`} />
             {errors.client_phone && <p className="text-xs text-red-500 mt-1">{errors.client_phone}</p>}
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Услуга <span className="text-red-500">*</span></label>
             <select value={form.service_id} onChange={u("service_id")}
-              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.service_id ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`}>
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.service_id ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-slate-400/70"}`}>
               <option value="">— Выберите услугу</option>
               {svcs.map(s => <option key={s.id} value={s.id}>{s.name} — {(s.price ?? 0).toLocaleString()} ₽</option>)}
             </select>
@@ -322,7 +328,7 @@ export function AppointmentEditor() {
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Мастер <span className="text-red-500">*</span></label>
             <select value={form.staff_id} onChange={u("staff_id")}
-              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.staff_id ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`}>
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors.staff_id ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-slate-400/70"}`}>
               <option value="">— Выберите мастера</option>
               {staffArr.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -338,7 +344,7 @@ export function AppointmentEditor() {
                   value={form.date}
                   onChange={u("date")}
                   min={TODAY}
-                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 dark:focus:border-violet-400 [color-scheme:light] dark:[color-scheme:dark]"
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 focus:border-slate-500 dark:focus:border-zinc-400 [color-scheme:light] dark:[color-scheme:dark]"
                 />
               </div>
             </div>
@@ -347,7 +353,7 @@ export function AppointmentEditor() {
               <button
                 type="button"
                 onClick={() => setTimePickerOpen(v => !v)}
-                className="w-full flex items-center justify-between border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 dark:focus:border-violet-400 cursor-pointer text-left"
+                className="w-full flex items-center justify-between border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 focus:border-slate-500 dark:focus:border-zinc-400 cursor-pointer text-left"
               >
                 <span>{TIME_SLOTS_15.includes(form.time) ? form.time : TIME_SLOTS_15[0]}</span>
                 <span className="text-gray-400 dark:text-zinc-500">▾</span>
@@ -361,7 +367,7 @@ export function AppointmentEditor() {
                         key={val}
                         type="button"
                         onClick={() => { setForm(p => ({ ...p, time: val })); setTimePickerOpen(false); }}
-                        className={`w-full px-3 py-2 text-left text-sm cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-900/30 ${form.time === val ? "bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 font-medium" : "text-gray-900 dark:text-gray-100"}`}
+                        className={`w-full px-3 py-2 text-left text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-800/80 ${form.time === val ? "bg-slate-100 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 font-medium" : "text-gray-900 dark:text-gray-100"}`}
                       >
                         {val}
                       </button>
@@ -373,7 +379,7 @@ export function AppointmentEditor() {
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Заметки</label>
-            <textarea value={form.notes} onChange={u("notes")} rows={2} placeholder="Комментарий к записи..." className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+            <textarea value={form.notes} onChange={u("notes")} rows={2} placeholder="Комментарий к записи..." className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 resize-none" />
           </div>
           <div className="flex gap-3 pt-2">
             <Button className="flex-1 justify-center" onClick={handleSave} disabled={saving}>{saving ? "Сохранение..." : "Создать запись"}</Button>
@@ -417,7 +423,7 @@ export function AppointmentsList() {
           <button
             key={s}
             onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filter === s ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600"}`}
+            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filter === s ? "bg-slate-900 text-white border-slate-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600"}`}
           >
             {s === "all"
               ? "Все"
@@ -605,7 +611,7 @@ export function AppointmentDetail() {
               placeholder="Добавьте заметку..."
               rows={3}
               disabled={savingNotes}
-              className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none disabled:opacity-70"
+              className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 resize-none disabled:opacity-70"
             />
             {savingNotes && <p className="text-xs text-gray-400 mt-1">Сохранение...</p>}
           </Card>
@@ -636,7 +642,7 @@ export function AppointmentDetail() {
                   onClick={() => handleStatusChange(s)}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer disabled:opacity-50 ${
                     a.status === s || (s === "no_show" && (a.status === "no-show" || a.status === "no_show"))
-                      ? "border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
+                      ? "border-slate-300 bg-slate-50 dark:bg-zinc-800/80 dark:border-zinc-600 text-slate-800 dark:text-zinc-200"
                       : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"
                   }`}
                 >
@@ -695,7 +701,7 @@ export function ClientsPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Поиск по имени или телефону..."
-          className="w-full max-w-sm border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full max-w-sm border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
         />
       </div>
 
@@ -731,7 +737,7 @@ export function ClientsPage() {
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">{c.total_visits ?? c.totalVisits ?? 0}</td>
                       <td className="px-4 py-3 text-right text-gray-500 dark:text-gray-400">{(c.last_visit ?? c.lastVisit ?? "—").toString().slice(5).replace("-", ".")}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-violet-600 dark:text-violet-400">{(c.total_spent ?? c.totalSpent ?? 0).toLocaleString()} ₽</td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-700 dark:text-zinc-300">{(c.total_spent ?? c.totalSpent ?? 0).toLocaleString()} ₽</td>
                     </tr>
                   );
                 })}
@@ -749,7 +755,7 @@ export function ClientsPage() {
                     <div className="text-xs text-gray-500 dark:text-gray-400">{c.phone}</div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="font-semibold text-violet-600 dark:text-violet-400 text-sm">{(c.total_spent ?? c.totalSpent ?? 0).toLocaleString()} ₽</div>
+                    <div className="font-semibold text-slate-700 dark:text-zinc-300 text-sm">{(c.total_spent ?? c.totalSpent ?? 0).toLocaleString()} ₽</div>
                     <div className="text-xs text-gray-400">{c.total_visits ?? c.totalVisits ?? 0} визитов</div>
                   </div>
                 </div>
@@ -825,7 +831,7 @@ export function ClientEditor() {
                 type={type}
                 value={form[field] ?? ""}
                 onChange={field === "phone" ? (e) => u("phone")({ ...e, target: { ...e.target, value: normalizePhone(e.target.value) } }) : u(field)}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors[field] ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors[field] ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-slate-400/70"}`}
               />
               {errors[field] && <p className="text-xs text-red-500 mt-1">{errors[field]}</p>}
             </div>
@@ -833,7 +839,7 @@ export function ClientEditor() {
           })}
           <div>
             <label htmlFor="client-new-notes" className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Заметки</label>
-            <textarea id="client-new-notes" value={form.notes ?? ""} onChange={u("notes")} rows={3} className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+            <textarea id="client-new-notes" value={form.notes ?? ""} onChange={u("notes")} rows={3} className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 resize-none" />
           </div>
           {saveError && (
             <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
@@ -952,7 +958,7 @@ export function ClientProfile() {
               onBlur={handleSaveNotes}
               rows={3}
               disabled={savingNotes}
-              className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-70"
+              className="w-full border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-400/70 disabled:opacity-70"
             />
             {savingNotes && <p className="text-xs text-gray-400 mt-1">Сохранение...</p>}
           </Card>
@@ -1028,7 +1034,7 @@ export function ServicesPage() {
 
       <div className="flex gap-2 mb-4 flex-wrap">
         {categories.map(c => (
-          <button key={c} onClick={() => setActiveCategory(c)} className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${activeCategory === c ? "bg-violet-600 text-white border-violet-600" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600"}`}>
+          <button key={c} onClick={() => setActiveCategory(c)} className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${activeCategory === c ? "bg-slate-900 text-white border-slate-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100" : "text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-600"}`}>
             {c}
           </button>
         ))}
@@ -1047,7 +1053,7 @@ export function ServicesPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{s.description}</p>
             <div className="flex items-center justify-between text-sm mb-3">
               <span className="text-gray-500 dark:text-gray-400">⏱ {s.duration} мин · {s.category}</span>
-              <span className="font-bold text-indigo-600 dark:text-indigo-400">{(s.price ?? 0).toLocaleString()} ₽</span>
+              <span className="font-bold text-slate-700 dark:text-zinc-300">{(s.price ?? 0).toLocaleString()} ₽</span>
             </div>
             <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-zinc-700">
               <button
@@ -1181,7 +1187,7 @@ export function ServiceEditor() {
                 className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${
                   fieldErrors[field]
                     ? "border-red-400 focus:ring-red-400"
-                    : "border-gray-300 dark:border-zinc-600 focus:ring-indigo-500"
+                    : "border-gray-300 dark:border-zinc-600 focus:ring-slate-400/70"
                 }`}
               />
               {fieldErrors[field] && (
@@ -1305,7 +1311,7 @@ export function StaffEditor() {
                 value={form[field] ?? ""}
                 onChange={field === "phone" ? (e) => u("phone")({ ...e, target: { ...e.target, value: normalizePhone(e.target.value) } }) : u(field)}
                 placeholder={field === "working_hours" ? "Пн–Вс: 09:00–18:00" : ""}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors[field] ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-violet-500"}`}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 ${errors[field] ? "border-red-400" : "border-gray-300 dark:border-zinc-600 focus:ring-slate-400/70"}`}
               />
               {errors[field] && <p className="text-xs text-red-500 mt-1">{errors[field]}</p>}
             </div>
@@ -1318,7 +1324,7 @@ export function StaffEditor() {
                   key={s.id}
                   type="button"
                   onClick={() => toggleService(s.id)}
-                  className={`px-3 py-1.5 rounded-full text-sm border cursor-pointer transition-colors ${form.services.includes(s.id) ? "bg-violet-600 text-white border-violet-600" : "border-gray-200 dark:border-zinc-600 text-gray-600 dark:text-gray-300 hover:border-violet-300"}`}
+                  className={`px-3 py-1.5 rounded-full text-sm border cursor-pointer transition-colors ${form.services.includes(s.id) ? "bg-slate-900 text-white border-slate-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100" : "border-gray-200 dark:border-zinc-600 text-gray-600 dark:text-gray-300 hover:border-slate-400 dark:hover:border-zinc-500"}`}
                 >
                   {s.name}
                 </button>
@@ -1406,7 +1412,7 @@ export function StaffProfile() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate("/staff")} className="text-gray-500 dark:text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 cursor-pointer text-sm">
+        <button onClick={() => navigate("/staff")} className="text-gray-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 cursor-pointer text-sm">
           ← Назад
         </button>
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">{s.name}</h1>
@@ -1441,7 +1447,7 @@ export function StaffProfile() {
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Статистика и записи</h3>
             <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-4">
               <div className="flex flex-col items-center justify-center min-h-[5.5rem] px-2 py-3 bg-gray-50 dark:bg-zinc-700/50 rounded-lg text-center">
-                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums leading-none">{apps.length}</div>
+                <div className="text-2xl font-bold text-slate-700 dark:text-zinc-300 tabular-nums leading-none">{apps.length}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-tight">Записей</div>
               </div>
               <div className="flex flex-col items-center justify-center min-h-[5.5rem] px-2 py-3 bg-gray-50 dark:bg-zinc-700/50 rounded-lg text-center">
@@ -1541,7 +1547,7 @@ export function MessagesPage() {
                   <button
                     type="button"
                     onClick={() => toggleTemplate(t.id)}
-                    className={`w-10 h-5 rounded-full transition-colors cursor-pointer relative flex-shrink-0 ${t.active ? "bg-violet-600" : "bg-gray-300 dark:bg-zinc-600"}`}
+                    className={`w-10 h-5 rounded-full transition-colors cursor-pointer relative flex-shrink-0 ${t.active ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}
                   >
                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${t.active ? "translate-x-5" : "translate-x-0.5"}`} />
                   </button>
@@ -1585,7 +1591,7 @@ export function MessagesPage() {
                   type="text"
                   value={editForm.name}
                   onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                 />
               </div>
               <div>
@@ -1594,7 +1600,7 @@ export function MessagesPage() {
                   type="text"
                   value={editForm.trigger}
                   onChange={e => setEditForm(p => ({ ...p, trigger: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                 />
               </div>
               <div>
@@ -1603,7 +1609,7 @@ export function MessagesPage() {
                   type="text"
                   value={editForm.channel}
                   onChange={e => setEditForm(p => ({ ...p, channel: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                 />
               </div>
             </div>
@@ -1653,8 +1659,8 @@ export function AnalyticsPage() {
           <div className="flex items-end gap-3 h-40">
             {revenue.map(d => (
               <div key={d.month} className="flex flex-col items-center gap-1 flex-1">
-                <div className="text-xs font-medium text-violet-600 dark:text-violet-400">{(d.revenue / 1000).toFixed(0)}к</div>
-                <div className="w-full bg-violet-500 rounded-t-md hover:bg-violet-600 transition-colors" style={{ height: `${(d.revenue / maxRevenue) * 120}px` }} />
+                <div className="text-xs font-medium text-slate-700 dark:text-zinc-300">{(d.revenue / 1000).toFixed(0)}к</div>
+                <div className="w-full bg-slate-500 dark:bg-slate-600 rounded-t-md hover:bg-slate-600 dark:hover:bg-slate-500 transition-colors" style={{ height: `${(d.revenue / maxRevenue) * 120}px` }} />
                 <div className="text-xs text-gray-400">{d.month}</div>
               </div>
             ))}
@@ -1833,7 +1839,7 @@ export function SettingsPage() {
               setLocalSettingsFeedback(null);
             }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
-              activeTab === t.id ? "border-violet-600 text-violet-600 dark:text-violet-400 dark:border-violet-400" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              activeTab === t.id ? "border-slate-900 text-slate-900 dark:text-zinc-100 dark:border-zinc-100" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             }`}
           >
             {t.label}
@@ -1862,7 +1868,7 @@ export function SettingsPage() {
                         [field]: field === "phone" ? normalizePhone(e.target.value) : e.target.value,
                       }));
                     }}
-                    className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                   />
                 </div>
               ))}
@@ -1878,7 +1884,7 @@ export function SettingsPage() {
                     setBiz((p) => ({ ...p, description: e.target.value }));
                   }}
                   rows={3}
-                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 resize-none"
                 />
               </div>
               {profileFeedback && (
@@ -1929,19 +1935,19 @@ export function SettingsPage() {
                 <div className="text-sm text-gray-500 dark:text-gray-400">Разрешить клиентам записываться онлайн</div>
               </div>
               <button onClick={() => setBooking(p => ({ ...p, onlineBooking: !p.onlineBooking }))}
-                className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${booking.onlineBooking ? "bg-violet-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${booking.onlineBooking ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
                 <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${booking.onlineBooking ? "translate-x-6" : "translate-x-0.5"}`} />
               </button>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Буфер между записями (мин)</label>
               <input type="number" value={booking.bufferMinutes} onChange={e => setBooking(p => ({ ...p, bufferMinutes: +e.target.value }))}
-                className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Политика отмены (часов до)</label>
               <input type="number" value={booking.cancellationHours} onChange={e => setBooking(p => ({ ...p, cancellationHours: +e.target.value }))}
-                className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70" />
             </div>
             <Button onClick={() => handleSaveSettings("booking")}>Сохранить</Button>
           </div>
@@ -1970,7 +1976,7 @@ export function SettingsPage() {
               <div key={field} className="flex items-center justify-between">
                 <div className="font-medium text-gray-900 dark:text-white">{label}</div>
                 <button onClick={() => setNotifications(p => ({ ...p, [field]: !p[field] }))}
-                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${notifications[field] ? "bg-violet-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${notifications[field] ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
                   <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${notifications[field] ? "translate-x-6" : "translate-x-0.5"}`} />
                 </button>
               </div>
@@ -1978,7 +1984,7 @@ export function SettingsPage() {
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Напоминание за (часов)</label>
               <input type="number" value={notifications.reminderHours} onChange={e => setNotifications(p => ({ ...p, reminderHours: +e.target.value }))}
-                className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70" />
             </div>
             <Button onClick={() => handleSaveSettings("notifications")}>Сохранить</Button>
           </div>
@@ -1994,11 +2000,11 @@ export function SettingsPage() {
               { id: "dark",  icon: "🌙", label: "Тёмная",   desc: "Тёмный фон, светлый текст" },
             ].map(t => (
               <button key={t.id} onClick={() => setTheme(t.id)}
-                className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${theme === t.id ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20" : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"}`}>
+                className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${theme === t.id ? "border-slate-400 bg-slate-50 dark:bg-zinc-800/60 dark:border-zinc-600" : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"}`}>
                 <div className="text-2xl mb-2">{t.icon}</div>
                 <div className="font-medium text-gray-900 dark:text-white text-sm">{t.label}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.desc}</div>
-                {theme === t.id && <div className="mt-2 text-xs text-violet-600 dark:text-violet-400 font-medium">✓ Активна</div>}
+                {theme === t.id && <div className="mt-2 text-xs text-slate-700 dark:text-zinc-300 font-medium">✓ Активна</div>}
               </button>
             ))}
           </div>
@@ -2008,10 +2014,10 @@ export function SettingsPage() {
 
       {activeTab === "billing" && (
         <Card className="p-6 max-w-lg">
-          <div className="flex items-center justify-between mb-4 p-4 bg-violet-50 dark:bg-violet-900/20 rounded-xl">
+          <div className="flex items-center justify-between mb-4 p-4 bg-slate-50 dark:bg-zinc-800/50 rounded-xl border border-gray-200/80 dark:border-zinc-700/80">
             <div>
-              <div className="font-bold text-violet-900 dark:text-violet-200">Pro план</div>
-              <div className="text-sm text-violet-600 dark:text-violet-400">Активен до 14 апреля 2026</div>
+              <div className="font-bold text-slate-900 dark:text-zinc-100">Pro план</div>
+              <div className="text-sm text-slate-700 dark:text-zinc-300">Активен до 14 апреля 2026</div>
             </div>
             <Badge color="indigo">Активен</Badge>
           </div>

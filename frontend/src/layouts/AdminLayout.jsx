@@ -41,7 +41,7 @@ export default function AdminLayout({ children }) {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                       isActive
-                        ? "bg-violet-600 text-white font-medium"
+                        ? "bg-white text-gray-900 font-medium"
                         : "text-gray-300 hover:bg-gray-700 hover:text-white"
                     }`
                   }
@@ -74,7 +74,7 @@ export default function AdminLayout({ children }) {
           <div className="relative">
             <button
               onClick={() => setAccountMenuOpen(v => !v)}
-              className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center text-sm font-semibold hover:bg-violet-500 transition-colors cursor-pointer"
+              className="w-8 h-8 bg-white text-gray-900 rounded-full flex items-center justify-center text-sm font-semibold hover:bg-zinc-200 transition-colors cursor-pointer"
             >
               А
             </button>
@@ -121,7 +121,7 @@ export default function AdminLayout({ children }) {
               end={item.end}
               className={({ isActive }) =>
                 `flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition-colors ${
-                  isActive ? "text-violet-400" : "text-gray-500"
+                  isActive ? "text-white" : "text-gray-500"
                 }`
               }
             >

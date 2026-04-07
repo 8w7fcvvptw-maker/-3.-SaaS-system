@@ -33,7 +33,7 @@ export default function BookingFlowLayout() {
       <BookingLayout>
         <ErrorState message={bookingLoadMessage(error)} />
         <p className="text-center mt-4 text-sm text-gray-500 dark:text-zinc-400">
-          <Link to="/login" className="font-medium text-violet-600 dark:text-violet-400 underline">
+          <Link to="/login" className="font-medium text-slate-700 dark:text-zinc-300 underline underline-offset-2">
             Вход для владельца
           </Link>
         </p>

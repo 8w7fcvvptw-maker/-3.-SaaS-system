@@ -64,8 +64,8 @@ export function AdminDashboard() {
           <div className="flex items-end gap-3 h-36">
             {revenue.map(d => (
               <div key={d.month} className="flex flex-col items-center gap-1 flex-1">
-                <div className="text-xs font-medium text-violet-400">{(d.revenue / 1000).toFixed(0)}k</div>
-                <div className="w-full bg-violet-500 rounded-t-md hover:bg-violet-400 transition-colors" style={{ height: `${(d.revenue / maxRevenue) * 100}px` }} />
+                <div className="text-xs font-medium text-slate-400">{(d.revenue / 1000).toFixed(0)}k</div>
+                <div className="w-full bg-slate-500 rounded-t-md hover:bg-slate-400 transition-colors" style={{ height: `${(d.revenue / maxRevenue) * 100}px` }} />
                 <div className="text-xs text-gray-500">{d.month}</div>
               </div>
             ))}
@@ -116,10 +116,10 @@ export function AdminBusinesses() {
 
       <div className="flex gap-3 mb-4 flex-wrap">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
-          className="border border-gray-700 bg-gray-800 text-white placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 w-60" />
+          className="border border-gray-700 bg-gray-800 text-white placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 w-60" />
         {["all", "Free", "Pro", "Enterprise"].map(p => (
           <button key={p} onClick={() => setFilterPlan(p)}
-            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filterPlan === p ? "bg-violet-600 text-white border-violet-600" : "text-gray-400 border-gray-600 hover:border-gray-400"}`}>
+            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filterPlan === p ? "bg-white text-gray-900 border-white" : "text-gray-400 border-gray-600 hover:border-gray-400"}`}>
             {p === "all" ? "Все" : p}
           </button>
         ))}
@@ -166,12 +166,12 @@ const INITIAL_PLANS = [
     notIncluded: ["SMS уведомления", "Расширенная аналитика", "Доступ к API"],
   },
   {
-    name: "Pro", price: "2 990 ₽", period: "/мес", color: "border-violet-500", popular: true,
+    name: "Pro", price: "2 990 ₽", period: "/мес", color: "border-slate-500", popular: true,
     features: ["До 10 сотрудников", "Безлимит записей", "SMS + Email", "Аналитика", "Свои шаблоны"],
     notIncluded: ["Доступ к API", "White-label"],
   },
   {
-    name: "Enterprise", price: "9 990 ₽", period: "/мес", color: "border-purple-500",
+    name: "Enterprise", price: "9 990 ₽", period: "/мес", color: "border-zinc-500",
     features: ["Безлимит сотрудников", "Безлимит записей", "SMS + Email + Push", "Полная аналитика", "Доступ к API", "White-label", "Приоритетная поддержка"],
     notIncluded: [],
   },
@@ -253,7 +253,7 @@ export function AdminPlans() {
         {plansWithCount.map(p => (
           <div key={p.name} className={`bg-gray-800 border-2 ${p.color} rounded-xl p-6 relative`}>
             {p.popular && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-violet-600 text-white text-xs font-semibold px-3 py-1 rounded-full">Популярный</div>
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white text-gray-900 text-xs font-semibold px-3 py-1 rounded-full">Популярный</div>
             )}
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -302,7 +302,7 @@ export function AdminPlans() {
                   type="text"
                   value={editForm.name}
                   onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full border border-gray-600 bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full border border-gray-600 bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                 />
               </div>
               <div>
@@ -311,7 +311,7 @@ export function AdminPlans() {
                   type="text"
                   value={editForm.price}
                   onChange={e => setEditForm(prev => ({ ...prev, price: e.target.value }))}
-                  className="w-full border border-gray-600 bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full border border-gray-600 bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                 />
               </div>
               <div>
@@ -320,7 +320,7 @@ export function AdminPlans() {
                   type="text"
                   value={editForm.period}
                   onChange={e => setEditForm(prev => ({ ...prev, period: e.target.value }))}
-                  className="w-full border border-gray-600 bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full border border-gray-600 bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                 />
               </div>
             </div>
@@ -337,7 +337,7 @@ export function AdminPlans() {
                 type="button"
                 onClick={saveEdit}
                 disabled={saving}
-                className="px-4 py-2 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-500 transition-colors cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-white text-gray-900 rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer disabled:opacity-50"
               >
                 {saving ? "Сохранение…" : "Сохранить"}
               </button>

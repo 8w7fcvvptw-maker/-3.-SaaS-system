@@ -7,17 +7,17 @@ import { formatLoadErrorMessage } from "../lib/formatLoadErrorMessage";
 
 // Кнопка с вариантами стиля
 export function Button({ children, variant = "primary", size = "md", onClick, className = "", disabled = false, type = "button" }) {
-  const base = "inline-flex items-center gap-2 font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+  const base = "inline-flex items-center gap-2 font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
   const variants = {
-    primary:   "bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500",
-    secondary: "bg-white dark:bg-zinc-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-700 focus:ring-gray-300",
-    danger:    "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
-    ghost:     "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-700 focus:ring-gray-300",
-    success:   "bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500",
+    primary:   "bg-slate-900 text-white hover:bg-slate-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white",
+    secondary: "bg-white dark:bg-zinc-800/90 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-zinc-700 hover:bg-gray-50/80 dark:hover:bg-zinc-700/80",
+    danger:    "bg-red-700 text-white hover:bg-red-800 focus-visible:ring-red-500/40",
+    ghost:     "text-gray-600 dark:text-gray-300 hover:bg-gray-100/80 dark:hover:bg-zinc-700/80",
+    success:   "bg-emerald-800 text-white hover:bg-emerald-900 focus-visible:ring-emerald-600/40",
   };
   const sizes = {
     sm: "px-3 py-1.5 text-sm",
-    md: "px-4 py-2 text-sm",
+    md: "px-4 py-2.5 text-sm",
     lg: "px-6 py-3 text-base",
   };
   return (
@@ -30,17 +30,17 @@ export function Button({ children, variant = "primary", size = "md", onClick, cl
 // Бейдж — статус или метка
 export function Badge({ children, color = "gray" }) {
   const colors = {
-    gray:   "bg-gray-100 text-gray-700 dark:bg-zinc-700 dark:text-gray-300",
-    green:  "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
-    yellow: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400",
-    red:    "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
-    blue:   "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400",
-    purple: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400",
-    indigo: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400",
-    teal:   "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400",
+    gray:   "bg-gray-100 text-gray-700 dark:bg-zinc-700 dark:text-zinc-300",
+    green:  "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+    yellow: "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-400",
+    red:    "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+    blue:   "bg-slate-100 text-slate-700 dark:bg-zinc-700 dark:text-gray-300",
+    purple: "bg-slate-100 text-slate-700 dark:bg-zinc-700 dark:text-zinc-300",
+    indigo: "bg-slate-100 text-slate-700 dark:bg-zinc-700 dark:text-zinc-300",
+    teal:   "bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300",
   };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ${colors[color]}`}>
       {children}
     </span>
   );
@@ -64,7 +64,7 @@ export function StatusBadge({ status }) {
 export function Avatar({ initials, size = "md", className = "" }) {
   const sizes = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-14 h-14 text-lg" };
   return (
-    <div className={`${sizes[size]} bg-gray-100 text-gray-700 dark:bg-zinc-700 dark:text-gray-300 rounded-full flex items-center justify-center font-semibold shrink-0 ${className}`}>
+    <div className={`${sizes[size]} bg-slate-100 text-slate-700 dark:bg-zinc-700 dark:text-zinc-200 rounded-full flex items-center justify-center font-medium shrink-0 ${className}`}>
       {initials}
     </div>
   );
@@ -73,7 +73,7 @@ export function Avatar({ initials, size = "md", className = "" }) {
 // Карточка — белая в светлой, тёмная в тёмной теме (передаёт onClick и другие обработчики)
 export function Card({ children, className = "", ...rest }) {
   return (
-    <div className={`bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-700 ${className}`} {...rest}>
+    <div className={`bg-white dark:bg-zinc-800 rounded-xl border border-gray-200/80 dark:border-zinc-700/80 ${className}`} {...rest}>
       {children}
     </div>
   );
@@ -82,26 +82,26 @@ export function Card({ children, className = "", ...rest }) {
 // KPI карточка (для дашборда)
 export function KpiCard({ label, value, icon, trend, color = "violet" }) {
   const colors = {
-    violet:  "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400",
-    green:   "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
-    yellow:  "bg-yellow-50 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400",
-    red:     "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400",
-    teal:    "bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400",
+    violet:  "bg-slate-100 text-slate-700 dark:bg-zinc-700 dark:text-zinc-200",
+    green:   "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+    yellow:  "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-400",
+    red:     "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+    teal:    "bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300",
   };
   const trendTone = {
-    violet:  "text-indigo-600/90 dark:text-indigo-400/90",
-    green:   "text-emerald-600/90 dark:text-emerald-400/90",
-    yellow:  "text-amber-700/90 dark:text-amber-400/90",
-    red:     "text-red-600/90 dark:text-red-400/90",
-    teal:    "text-teal-600/90 dark:text-teal-400/90",
+    violet:  "text-slate-600 dark:text-zinc-400",
+    green:   "text-emerald-700/90 dark:text-emerald-400/90",
+    yellow:  "text-amber-800/90 dark:text-amber-400/90",
+    red:     "text-red-700/90 dark:text-red-400/90",
+    teal:    "text-teal-700/90 dark:text-teal-400/90",
   };
   return (
-    <Card className="p-5 h-full min-h-[132px] flex flex-col">
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <span className="text-sm text-gray-500 dark:text-gray-400 leading-snug flex-1 min-w-0">{label}</span>
+    <Card className="p-6 h-full min-h-[132px] flex flex-col">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <span className="text-sm text-gray-500 dark:text-zinc-400 leading-snug flex-1 min-w-0">{label}</span>
         <span className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-lg leading-none ${colors[color] || colors.violet}`}>{icon}</span>
       </div>
-      <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums tracking-tight mt-auto">{value}</div>
+      <div className="text-2xl font-semibold text-gray-900 dark:text-white tabular-nums tracking-tight mt-auto">{value}</div>
       {trend && (
         <div className={`text-xs mt-1 leading-snug ${trendTone[color] || trendTone.violet}`}>{trend}</div>
       )}
@@ -113,8 +113,8 @@ export function KpiCard({ label, value, icon, trend, color = "violet" }) {
 export function StarRating({ rating }) {
   return (
     <span className="flex items-center gap-1 text-sm">
-      <span className="text-yellow-400">★</span>
-      <span className="font-medium text-gray-700 dark:text-zinc-300">{rating}</span>
+      <span className="text-amber-600/80 dark:text-amber-500/80">★</span>
+      <span className="font-medium text-gray-700 dark:text-zinc-300 tabular-nums">{rating}</span>
     </span>
   );
 }
@@ -133,7 +133,7 @@ export function Input({ label, type = "text", value, onChange, placeholder, requ
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+        className="border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/50 dark:focus:ring-zinc-500 focus:border-slate-300 dark:focus:border-zinc-500"
       />
     </div>
   );
@@ -142,12 +142,12 @@ export function Input({ label, type = "text", value, onChange, placeholder, requ
 // Секция страницы с заголовком
 export function PageHeader({ title, subtitle, action }) {
   return (
-    <div className="flex items-center justify-between mb-6">
+    <div className="flex items-center justify-between mb-8 gap-4">
       <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
+        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">{title}</h1>
+        {subtitle && <p className="text-sm text-gray-500 dark:text-zinc-400 mt-1">{subtitle}</p>}
       </div>
-      {action && <div>{action}</div>}
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }
@@ -169,7 +169,7 @@ export function LoadingState({ text = "Загрузка..." }) {
     <div className="text-center py-12">
       <div className="flex justify-center mb-4">
         <div className="animate-spin">
-          <div className="w-8 h-8 border-4 border-gray-200 dark:border-zinc-600 border-t-violet-600 dark:border-t-violet-400 rounded-full"></div>
+          <div className="w-8 h-8 border-2 border-gray-200 dark:border-zinc-600 border-t-slate-700 dark:border-t-zinc-300 rounded-full"></div>
         </div>
       </div>
       <p className="text-sm text-gray-600 dark:text-gray-400">{text}</p>

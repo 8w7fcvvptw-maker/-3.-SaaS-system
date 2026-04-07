@@ -19,7 +19,7 @@ function inputClass(hasError) {
     "w-full rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800 text-gray-900 dark:text-white border transition-colors";
   return hasError
     ? `${base} border-red-500 dark:border-red-500 ring-1 ring-red-500/35 focus:outline-none focus:ring-2 focus:ring-red-500/50`
-    : `${base} border-gray-300 dark:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500`;
+    : `${base} border-gray-200 dark:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-slate-400/40 focus:border-slate-400`;
 }
 
 export function LoginPage() {
@@ -61,7 +61,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-zinc-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-zinc-50/80 dark:bg-zinc-950 flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 space-y-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">Вход</h1>
@@ -125,7 +125,7 @@ export function LoginPage() {
         </form>
         <p className="text-sm text-center text-gray-500 dark:text-gray-400">
           Нет аккаунта?{" "}
-          <Link to="/register" className="text-violet-600 dark:text-violet-400 font-medium hover:underline">
+          <Link to="/register" className="text-slate-700 dark:text-zinc-300 font-medium hover:underline underline-offset-2">
             Регистрация
           </Link>
         </p>
@@ -178,7 +178,7 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-zinc-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-zinc-50/80 dark:bg-zinc-950 flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 space-y-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">Регистрация</h1>
@@ -258,7 +258,7 @@ export function RegisterPage() {
         </form>
         <p className="text-sm text-center text-gray-500 dark:text-gray-400">
           Уже есть аккаунт?{" "}
-          <Link to="/login" className="text-violet-600 dark:text-violet-400 font-medium hover:underline">
+          <Link to="/login" className="text-slate-700 dark:text-zinc-300 font-medium hover:underline underline-offset-2">
             Войти
           </Link>
         </p>
@@ -333,7 +333,7 @@ export function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-zinc-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-zinc-50/80 dark:bg-zinc-950 flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 space-y-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">Ваш салон</h1>
