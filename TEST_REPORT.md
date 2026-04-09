@@ -126,3 +126,26 @@ npm run test
 ## 10. Про интерфейс кабинета
 
 Страницы **«Уведомления»** и блок **«Популярные услуги»** на **«Аналитике»** помечены в UI как **заглушка / демо** (нет реальной отправки SMS/Email; полосы популярности не считаются из агрегатов БД). Остальные разделы опираются на API и RLS.
+
+---
+
+## 11. SaaS-монетизация (обязательный сценарий)
+
+После внедрения подписок и ЮKassa добавлен проверочный e2e-сценарий:
+
+1. **BUSINESS без подписки**
+   - Вызов создания услуги/записи блокируется.
+   - Ответ API: **403** + `subscription_required`.
+
+2. **BUSINESS после оплаты**
+   - Через `POST /api/payments/create` создаётся платёж и redirect в ЮKassa.
+   - До webhook доступ не открывается.
+   - После `payment.succeeded` (webhook) активируется подписка, и BUSINESS получает доступ.
+
+3. **CLIENT**
+   - Может пользоваться публичной записью без бизнес-ограничений.
+
+Ручная проверка:
+- `GET /api/subscription/status` до оплаты: `hasActiveSubscription=false`.
+- webhook `payment.succeeded`: запись в `payments.status='succeeded'`, новая строка в `subscriptions.status='active'`.
+- повторный `GET /api/subscription/status`: `hasActiveSubscription=true`.

@@ -4,6 +4,8 @@ import { requireSession } from './auth.js';
 import { getOwnerBusinessId } from './business.js';
 import { ApiError } from './errors.js';
 import { requireRowInBusiness } from './access.js';
+import { requireActiveSubscription } from './roles.js';
+import { checkServicesQuota } from './subscriptions.js';
 import {
   assertId,
   assertNonEmptyString,
@@ -73,6 +75,7 @@ export async function getServiceById(id) {
 
 export async function updateService(id, updates) {
   await requireSession();
+  await requireActiveSubscription();
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('services', id, bid, 'Услуга');
@@ -95,7 +98,9 @@ export async function updateService(id, updates) {
 
 export async function createService(data) {
   await requireSession();
+  await requireActiveSubscription();
   const bid = await getOwnerBusinessId();
+  await checkServicesQuota(bid);
   if (data?.business_id != null && Number(data.business_id) !== bid) {
     throw new ApiError('Нельзя создавать услугу для чужого салона', {
       field: 'business_id',
@@ -120,6 +125,7 @@ export async function createService(data) {
 
 export async function deleteService(id) {
   await requireSession();
+  await requireActiveSubscription();
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('services', id, bid, 'Услуга');

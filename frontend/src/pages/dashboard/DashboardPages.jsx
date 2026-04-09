@@ -15,6 +15,8 @@ import { useAsync } from "../../hooks/useAsync";
 import { useMinWidthMd } from "../../hooks/useMinWidthMd.js";
 import { normalizePhone } from "../../lib/phoneUtils";
 import { SAAS_BUSINESS_PROFILE_CHANGED } from "../../lib/saasEvents.js";
+import { useSubscription } from "../../hooks/useSubscription.js";
+import { PLAN_LIMITS, redirectToPayment } from "../../lib/subscription.js";
 import {
   getAppointments, getAppointmentsByDate, getAppointmentById,
   getClients, getClientById, createClient, updateClient,
@@ -39,6 +41,50 @@ const TIME_SLOTS_15 = Array.from({ length: 49 }, (_, i) => {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 });
 
+// ── Баннер подписки ────────────────────────────────────────────
+function SubscriptionBanner() {
+  const { subscription, hasActiveSubscription, isBusiness, isAdmin } = useSubscription();
+  const [upgrading, setUpgrading] = useState(null);
+
+  if (isAdmin) return null;
+  if (!isBusiness) return null;
+  if (!hasActiveSubscription) return null;
+
+  if (!subscription) return null;
+
+  const plan = PLAN_LIMITS[subscription.plan];
+  const daysLeft = subscription.end_date
+    ? Math.ceil((new Date(subscription.end_date) - new Date()) / 86400000)
+    : null;
+
+  if (daysLeft !== null && daysLeft > 7) return null;
+
+  async function handleRenew() {
+    setUpgrading(subscription.plan);
+    try {
+      await redirectToPayment(subscription.plan);
+    } catch {
+      setUpgrading(null);
+    }
+  }
+
+  return (
+    <div className="mb-6 bg-amber-900/30 border border-amber-500/40 rounded-lg px-4 py-3 flex items-center justify-between gap-4">
+      <div className="text-sm text-amber-300">
+        ⚠️ Подписка <strong>{plan?.displayName}</strong> истекает через{" "}
+        <strong>{daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}</strong>.
+      </div>
+      <button
+        onClick={handleRenew}
+        disabled={!!upgrading}
+        className="shrink-0 text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+      >
+        {upgrading ? "Перенаправление..." : "Продлить"}
+      </button>
+    </div>
+  );
+}
+
 // ── 2.1 Dashboard (/dashboard) ────────────────────────────────
 export function Dashboard() {
   const navigate = useNavigate();
@@ -56,12 +102,13 @@ export function Dashboard() {
         title="Дашборд"
         subtitle={new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       />
+      <SubscriptionBanner />
 
       {loading ? (
         <LoadingState />
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5 mb-8 items-stretch">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-5 mb-8 items-stretch">
             <KpiCard label="Записей сегодня" value={todayApps.length} icon="📋" trend="За сегодня" color="violet" />
             <KpiCard label="Выручка сегодня" value={`${revenue.toLocaleString()} ₽`} icon="💰" trend="Завершённые" color="green" />
             <KpiCard label="Ожидают подтверждения" value={todayApps.filter(a => a.status === "pending").length} icon="⏳" trend="Ожидают" color="yellow" />
@@ -1646,7 +1693,7 @@ export function AnalyticsPage() {
         subtitle="Выручка и записи по месяцам — из API; блок «Популярные услуги» ниже помечен как демо-визуализация."
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 items-stretch">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4 mb-6 items-stretch">
         <KpiCard label="Выручка за месяц" value={revenue.length ? `${(revenue[revenue.length - 1]?.revenue ?? 0).toLocaleString()} ₽` : "—"} icon="💰" color="violet" />
         <KpiCard label="Записей за месяц" value={revenue.length ? (revenue[revenue.length - 1]?.bookings ?? "—") : "—"} icon="📋" color="green" />
         <KpiCard label="Всего клиентов"   value={(appointments ?? []).length} icon="👤" color="yellow" />
@@ -2012,23 +2059,110 @@ export function SettingsPage() {
         </Card>
       )}
 
-      {activeTab === "billing" && (
-        <Card className="p-6 max-w-lg">
-          <div className="flex items-center justify-between mb-4 p-4 bg-slate-50 dark:bg-zinc-800/50 rounded-xl border border-gray-200/80 dark:border-zinc-700/80">
+      {activeTab === "billing" && <BillingTab />}
+    </div>
+  );
+}
+
+// ── Billing Tab ────────────────────────────────────────────────
+function BillingTab() {
+  const { subscription, hasActiveSubscription, loading } = useSubscription();
+  const [paying, setPaying] = useState(null);
+  const [error, setError] = useState(null);
+
+  async function handleChoosePlan(plan) {
+    setPaying(plan);
+    setError(null);
+    try {
+      await redirectToPayment(plan);
+    } catch (err) {
+      setError(err.message);
+      setPaying(null);
+    }
+  }
+
+  if (loading) return <LoadingState />;
+
+  const currentPlan = subscription?.plan;
+  const endDate = subscription?.end_date
+    ? new Date(subscription.end_date).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
+  const plans = [
+    { key: "basic", badge: null },
+    { key: "pro", badge: "Популярный" },
+    { key: "unlimited", badge: null },
+  ];
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      {error && (
+        <div className="bg-red-900/30 border border-red-500/40 text-red-300 rounded-lg px-4 py-3 text-sm">{error}</div>
+      )}
+
+      {hasActiveSubscription && subscription ? (
+        <Card className="p-5">
+          <div className="flex items-center justify-between">
             <div>
-              <div className="font-bold text-slate-900 dark:text-zinc-100">Pro план</div>
-              <div className="text-sm text-slate-700 dark:text-zinc-300">Активен до 14 апреля 2026</div>
+              <div className="font-semibold text-slate-900 dark:text-zinc-100">
+                {PLAN_LIMITS[currentPlan]?.displayName ?? currentPlan} план
+              </div>
+              {endDate && (
+                <div className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">Активен до {endDate}</div>
+              )}
             </div>
             <Badge color="indigo">Активен</Badge>
           </div>
-          <div className="space-y-2 text-sm mb-4">
-            {["✓ Неограниченные записи", "✓ До 10 сотрудников", "✓ SMS уведомления", "✓ Аналитика"].map(f => (
-              <div key={f} className="text-gray-700 dark:text-gray-300">{f}</div>
-            ))}
-          </div>
-          <Button variant="secondary" className="w-full justify-center">Изменить тариф</Button>
         </Card>
+      ) : (
+        <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg px-4 py-3 text-sm text-amber-300">
+          У вас нет активной подписки. Выберите тарифный план ниже.
+        </div>
       )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {plans.map(({ key, badge }) => {
+          const plan = PLAN_LIMITS[key];
+          const isCurrent = currentPlan === key && hasActiveSubscription;
+          return (
+            <div
+              key={key}
+              className={`relative rounded-xl border p-5 flex flex-col transition-all ${
+                badge ? "border-violet-500 ring-1 ring-violet-500" : "border-gray-200 dark:border-zinc-700"
+              } ${isCurrent ? "bg-violet-50 dark:bg-violet-900/20" : "bg-white dark:bg-zinc-800"}`}
+            >
+              {badge && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-violet-600 text-white text-xs px-3 py-0.5 rounded-full">
+                  {badge}
+                </span>
+              )}
+              <div className="font-semibold text-slate-900 dark:text-zinc-100 mb-1">{plan.displayName}</div>
+              <div className="text-xl font-bold text-violet-500 mb-3">
+                {plan.priceRub.toLocaleString("ru-RU")} ₽<span className="text-gray-400 text-sm font-normal">/мес</span>
+              </div>
+              <ul className="space-y-1 text-xs text-gray-500 dark:text-gray-400 flex-1 mb-4">
+                <li>Записей: {plan.appointmentsPerMonth === -1 ? "∞" : plan.appointmentsPerMonth}/мес</li>
+                <li>Услуги: {plan.servicesLimit === -1 ? "∞" : `до ${plan.servicesLimit}`}</li>
+              </ul>
+              {isCurrent ? (
+                <div className="text-center text-xs text-violet-500 font-medium py-2">Текущий тариф</div>
+              ) : (
+                <button
+                  onClick={() => handleChoosePlan(key)}
+                  disabled={paying !== null}
+                  className="w-full py-2 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-50 transition-all"
+                >
+                  {paying === key ? "Перенаправление..." : `Перейти на ${plan.displayName}`}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-gray-400 dark:text-gray-500">
+        Оплата через ЮKassa. Подписка активируется автоматически после успешной оплаты.
+      </p>
     </div>
   );
 }

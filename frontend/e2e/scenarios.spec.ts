@@ -134,10 +134,10 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
 
       const serviceCard = page
         .getByText(serviceName, { exact: true })
-        .locator("xpath=ancestor::div[contains(@class,'shadow-sm')]")
+        .locator("xpath=ancestor::div[contains(@class,'hover:shadow-md')]")
         .first();
       page.once("dialog", (d) => d.accept());
-      await serviceCard.getByRole("button", { name: "🗑" }).click();
+      await serviceCard.getByRole("button", { name: "🗑" }).first().click();
 
       await expect(page.getByText(serviceName, { exact: true })).toBeHidden({ timeout: 20_000 });
     });

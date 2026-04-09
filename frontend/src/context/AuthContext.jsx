@@ -9,6 +9,7 @@ import {
 import { flushSync } from "react-dom";
 import { supabase } from "../lib/supabase.js";
 import { clearBusinessCache } from "../lib/api.js";
+import { getMyProfile } from "../lib/subscription.js";
 
 const AuthContext = createContext(null);
 
@@ -18,21 +19,28 @@ const AUTH_LOADING_SAFETY_MS = 18_000;
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState(null);
 
   /** Прочитать сессию из клиента Supabase и обновить React (нужно сразу после signIn, до navigate). */
   const syncAuth = useCallback(async () => {
     try {
-      // Без таймаута: сразу после signIn сессия уже в клиенте; таймаут мог бы обнулить user при лаге сети.
       const { data: { session } } = await supabase.auth.getSession();
+      const sessionUser = session?.user ?? null;
       flushSync(() => {
-        setUser(session?.user ?? null);
+        setUser(sessionUser);
         setLoading(false);
       });
+      if (sessionUser) {
+        getMyProfile().then(setUserProfile).catch(() => {});
+      } else {
+        setUserProfile(null);
+      }
     } catch {
       flushSync(() => {
         setUser(null);
         setLoading(false);
       });
+      setUserProfile(null);
     }
   }, []);
 
@@ -43,9 +51,15 @@ export function AuthProvider({ children }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return;
-      setUser(session?.user ?? null);
+      const sessionUser = session?.user ?? null;
+      setUser(sessionUser);
       setLoading(false);
-      if (!session) clearBusinessCache();
+      if (!session) {
+        clearBusinessCache();
+        setUserProfile(null);
+      } else if (sessionUser) {
+        getMyProfile().then(setUserProfile).catch(() => {});
+      }
     });
 
     const safetyId = setTimeout(() => {
@@ -65,8 +79,14 @@ export function AuthProvider({ children }) {
       loading,
       isAuthenticated: !!user,
       syncAuth,
+      userProfile,
+      role: userProfile?.role ?? null,
+      hasActiveSubscription: userProfile?.hasActiveSubscription ?? false,
+      isAdmin: userProfile?.role === 'admin',
+      isBusiness: userProfile?.role === 'business',
+      isClient: userProfile?.role === 'client',
     }),
-    [user, loading, syncAuth]
+    [user, loading, syncAuth, userProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

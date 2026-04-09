@@ -96,14 +96,21 @@ export function KpiCard({ label, value, icon, trend, color = "violet" }) {
     teal:    "text-teal-700/90 dark:text-teal-400/90",
   };
   return (
-    <Card className="p-6 h-full min-h-[132px] flex flex-col">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <span className="text-sm text-gray-500 dark:text-zinc-400 leading-snug flex-1 min-w-0">{label}</span>
-        <span className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-lg leading-none ${colors[color] || colors.violet}`}>{icon}</span>
+    <Card className="p-4 sm:p-5 xl:p-6 h-full min-h-[132px] flex flex-col gap-2 overflow-hidden">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-gray-500 dark:text-zinc-400 leading-snug pr-1">{label}</span>
+        <span
+          aria-hidden="true"
+          className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-base leading-none ${colors[color] || colors.violet}`}
+        >
+          {icon}
+        </span>
       </div>
-      <div className="text-2xl font-semibold text-gray-900 dark:text-white tabular-nums tracking-tight mt-auto">{value}</div>
+      <div className="text-2xl font-semibold text-gray-900 dark:text-white tabular-nums tracking-tight mt-auto break-words">
+        {value}
+      </div>
       {trend && (
-        <div className={`text-xs mt-1 leading-snug ${trendTone[color] || trendTone.violet}`}>{trend}</div>
+        <div className={`text-xs leading-snug break-words ${trendTone[color] || trendTone.violet}`}>{trend}</div>
       )}
     </Card>
   );

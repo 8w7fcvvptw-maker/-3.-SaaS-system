@@ -4,6 +4,8 @@ import { requireSession } from './auth.js';
 import { getOwnerBusinessId } from './business.js';
 import { ApiError } from './errors.js';
 import { requireRowInBusiness, requireServiceInBusiness, requireStaffInBusiness, requireClientInBusiness } from './access.js';
+import { requireActiveSubscription } from './roles.js';
+import { checkAppointmentQuota } from './subscriptions.js';
 import {
   assertId,
   assertDateIso,
@@ -217,6 +219,7 @@ export async function getAppointmentsForClient(clientId, clientName) {
 
 export async function updateAppointmentStatus(id, status) {
   await requireSession();
+  await requireActiveSubscription();
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('appointments', id, bid, 'Запись');
@@ -235,6 +238,7 @@ export async function updateAppointmentStatus(id, status) {
 
 export async function updateAppointment(id, updates) {
   await requireSession();
+  await requireActiveSubscription();
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('appointments', id, bid, 'Запись');
@@ -295,7 +299,9 @@ function pickNotes(value) {
 
 export async function createAppointment(data) {
   await requireSession();
+  await requireActiveSubscription();
   const ownerBid = await getOwnerBusinessId();
+  await checkAppointmentQuota(ownerBid);
 
   const insertData = {};
   for (const k of APPOINTMENT_INSERT_COLS) {
