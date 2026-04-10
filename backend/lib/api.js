@@ -15,9 +15,9 @@ export * from './plans.js';
 export * from './subscriptions.js';
 
 // roles.js — только то, чего нет в subscriptions.js
-export { ROLES, requireRole, requireActiveSubscription, setUserRole, getMyRole, getMyProfile } from './roles.js';
+export { ROLES, requireRole, setUserRole, getMyRole, getMyProfile } from './roles.js';
 
-// payments.js
-export { createYokassaPayment, handleYokassaWebhook, verifyYokassaWebhookIp, getMyPayments } from './payments.js';
+// payments.js (серверные createPayment / webhook — см. backend/lib/yookassa.js, подключается из auth-api)
+export { getMyPayments } from './payments.js';
 
 export { ApiError } from './errors.js';

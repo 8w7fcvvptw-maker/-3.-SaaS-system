@@ -9,7 +9,13 @@ export async function getAdminStats() {
 
   const { data, error } = await supabase.rpc('get_admin_stats');
   if (error) throw new ApiError(error.message, { code: 'validation_error', status: 400 });
-  return data;
+
+  return {
+    totalRevenue: data?.totalRevenue ?? 0,
+    activeSubscriptions: data?.activeSubscriptions ?? 0,
+    totalBusinessUsers: data?.totalBusinessUsers ?? 0,
+    totalUsers: data?.totalUsers ?? 0,
+  };
 }
 
 /** Список всех бизнес-пользователей с подписками */

@@ -2,6 +2,7 @@ import { supabase } from './supabase.js';
 import { throwOnError } from './helpers.js';
 import { ApiError } from './errors.js';
 import { requireSession } from './auth.js';
+import { getUserRole, requireActiveSubscription } from './subscriptions.js';
 import {
   assertNonEmptyString,
   assertSlug,
@@ -71,6 +72,10 @@ export async function getBusiness(slug) {
 
 export async function updateBusiness(id, updates) {
   const session = await requireSession();
+  const role = await getUserRole(session.user.id);
+  if (role === 'business') {
+    await requireActiveSubscription(session.user.id);
+  }
   const bid = assertId(Number(id), 'id');
   const ownerBid = await getOwnerBusinessId();
   if (bid !== ownerBid) {
@@ -101,6 +106,10 @@ export async function updateBusiness(id, updates) {
 export async function createBusiness(payload) {
   const session = await requireSession();
   const uid = session.user.id;
+  const role = await getUserRole(uid);
+  if (role === 'business') {
+    await requireActiveSubscription(uid);
+  }
 
   const existing = await supabase.from('businesses').select('id').eq('user_id', uid).limit(1).maybeSingle();
   if (existing.data?.id) {

@@ -4,8 +4,7 @@ import { requireSession } from './auth.js';
 import { getOwnerBusinessId } from './business.js';
 import { ApiError } from './errors.js';
 import { requireRowInBusiness, requireServiceInBusiness, requireStaffInBusiness, requireClientInBusiness } from './access.js';
-import { requireActiveSubscription } from './roles.js';
-import { checkAppointmentQuota } from './subscriptions.js';
+import { checkAppointmentQuota, getUserRole, requireActiveSubscription } from './subscriptions.js';
 import {
   assertId,
   assertDateIso,
@@ -218,8 +217,11 @@ export async function getAppointmentsForClient(clientId, clientName) {
 }
 
 export async function updateAppointmentStatus(id, status) {
-  await requireSession();
-  await requireActiveSubscription();
+  const session = await requireSession();
+  const role = await getUserRole(session.user.id);
+  if (role === 'business') {
+    await requireActiveSubscription(session.user.id);
+  }
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('appointments', id, bid, 'Запись');
@@ -237,8 +239,11 @@ export async function updateAppointmentStatus(id, status) {
 }
 
 export async function updateAppointment(id, updates) {
-  await requireSession();
-  await requireActiveSubscription();
+  const session = await requireSession();
+  const role = await getUserRole(session.user.id);
+  if (role === 'business') {
+    await requireActiveSubscription(session.user.id);
+  }
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('appointments', id, bid, 'Запись');
@@ -298,8 +303,11 @@ function pickNotes(value) {
 }
 
 export async function createAppointment(data) {
-  await requireSession();
-  await requireActiveSubscription();
+  const session = await requireSession();
+  const role = await getUserRole(session.user.id);
+  if (role === 'business') {
+    await requireActiveSubscription(session.user.id);
+  }
   const ownerBid = await getOwnerBusinessId();
   await checkAppointmentQuota(ownerBid);
 
@@ -427,7 +435,11 @@ function normalizeStatusForDeleteRule(status) {
 }
 
 export async function deleteAppointment(id) {
-  await requireSession();
+  const session = await requireSession();
+  const role = await getUserRole(session.user.id);
+  if (role === 'business') {
+    await requireActiveSubscription(session.user.id);
+  }
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('appointments', id, bid, 'Запись');

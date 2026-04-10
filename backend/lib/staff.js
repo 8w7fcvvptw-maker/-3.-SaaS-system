@@ -4,6 +4,7 @@ import { requireSession } from './auth.js';
 import { getOwnerBusinessId } from './business.js';
 import { ApiError } from './errors.js';
 import { requireRowInBusiness } from './access.js';
+import { getUserRole, requireActiveSubscription } from './subscriptions.js';
 import {
   assertId,
   assertNonEmptyString,
@@ -74,7 +75,11 @@ export async function getStaffById(id) {
 }
 
 export async function createStaff(data) {
-  await requireSession();
+  const session = await requireSession();
+  const role = await getUserRole(session.user.id);
+  if (role === 'business') {
+    await requireActiveSubscription(session.user.id);
+  }
   const bid = await getOwnerBusinessId();
   if (data?.business_id != null && Number(data.business_id) !== bid) {
     throw new ApiError('Нельзя создавать сотрудника для чужого салона', {
@@ -105,7 +110,11 @@ export async function createStaff(data) {
 }
 
 export async function updateStaff(id, updates) {
-  await requireSession();
+  const session = await requireSession();
+  const role = await getUserRole(session.user.id);
+  if (role === 'business') {
+    await requireActiveSubscription(session.user.id);
+  }
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('staff', id, bid, 'Сотрудник');
@@ -147,7 +156,11 @@ export async function updateStaff(id, updates) {
 }
 
 export async function deleteStaff(id) {
-  await requireSession();
+  const session = await requireSession();
+  const role = await getUserRole(session.user.id);
+  if (role === 'business') {
+    await requireActiveSubscription(session.user.id);
+  }
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('staff', id, bid, 'Сотрудник');

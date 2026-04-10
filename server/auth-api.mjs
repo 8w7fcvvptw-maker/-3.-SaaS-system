@@ -8,9 +8,13 @@ import rateLimit from "express-rate-limit";
 import { createClient } from "@supabase/supabase-js";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import crypto from "node:crypto";
 import { assertEmail, assertPassword } from "../backend/lib/validation.js";
 import { ApiError } from "../backend/lib/errors.js";
+import {
+  createPayment,
+  handleYokassaWebhook,
+  verifyYokassaWebhookIp,
+} from "../backend/lib/yookassa.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
@@ -143,14 +147,6 @@ const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(corsMiddleware);
-app.post("/api/payments/webhook", express.raw({ type: "application/json", limit: "1mb" }));
-app.use(express.json({ limit: "32kb" }));
-
-const PLAN_PRICES = {
-  basic: { amount: 990, displayName: "Basic" },
-  pro: { amount: 2990, displayName: "Pro" },
-  unlimited: { amount: 9990, displayName: "Unlimited" },
-};
 
 function getBearerToken(req) {
   const auth = req.headers.authorization || "";
@@ -185,21 +181,29 @@ async function getActiveSubscriptionByUserId(userId) {
   return data;
 }
 
-function getYookassaAuth() {
-  const shopId = process.env.YOKASSA_SHOP_ID;
-  const secretKey = process.env.YOKASSA_SECRET_KEY;
-  if (!shopId || !secretKey) return null;
-  return Buffer.from(`${shopId}:${secretKey}`).toString("base64");
-}
+app.post(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  async (req, res) => {
+    try {
+      const remoteIp = req.ip || req.socket?.remoteAddress || "";
+      if (!verifyYokassaWebhookIp(remoteIp)) {
+        return res.status(403).json({ message: "IP не в whitelist ЮKassa", code: "webhook_ip_forbidden" });
+      }
 
-function verifyYookassaWebhookSignature(req) {
-  const secret = process.env.YOKASSA_WEBHOOK_SECRET;
-  if (!secret) return true;
-  const signature = req.headers["x-yookassa-signature"];
-  if (!signature || !Buffer.isBuffer(req.body)) return false;
-  const digest = crypto.createHmac("sha256", secret).update(req.body).digest("hex");
-  return digest === signature;
-}
+      await handleYokassaWebhook(req, { supabaseAdmin });
+      return res.status(200).json({ ok: true });
+    } catch (e) {
+      if (e instanceof ApiError) {
+        return res.status(e.status).json({ message: e.message, code: e.code });
+      }
+      console.error("[auth-api] /api/payments/webhook", e);
+      return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
+    }
+  },
+);
+
+app.use(express.json({ limit: "32kb" }));
 
 app.post("/api/auth/login", loginLimiter, async (req, res) => {
   try {
@@ -263,106 +267,18 @@ app.post("/api/payments/create", async (req, res) => {
   try {
     const user = await getRequestUser(req);
     if (!user) return res.status(401).json({ message: "Требуется авторизация", code: "auth_required" });
-    const yookassaAuth = getYookassaAuth();
-    if (!yookassaAuth) {
-      return res.status(503).json({
-        message: "Платежи временно отключены: ЮKassa еще не настроена.",
-        code: "payments_disabled",
-      });
-    }
-
     const { plan, returnUrl } = req.body || {};
-    const planData = PLAN_PRICES[plan];
-    if (!planData) return res.status(400).json({ message: "Некорректный тариф", code: "validation_error" });
-
-    const ykRes = await fetch("https://api.yookassa.ru/v3/payments", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${yookassaAuth}`,
-        "Idempotence-Key": `${user.id}-${plan}-${Date.now()}`,
-      },
-      body: JSON.stringify({
-        amount: { value: planData.amount.toFixed(2), currency: "RUB" },
-        confirmation: {
-          type: "redirect",
-          return_url: returnUrl || `${process.env.APP_URL || "http://localhost:5173"}/dashboard?payment=success`,
-        },
-        capture: true,
-        description: `Подписка ${planData.displayName}`,
-        metadata: { userId: user.id, plan },
-      }),
-    });
-
-    const ykData = await ykRes.json();
-    if (!ykRes.ok) {
-      return res.status(400).json({
-        message: ykData?.description || "Ошибка создания платежа",
-        code: "payment_error",
-      });
+    if (!plan || typeof plan !== "string") {
+      return res.status(400).json({ message: "Укажите тариф (plan)", code: "validation_error" });
     }
 
-    await supabaseAdmin.from("payments").insert({
-      user_id: user.id,
-      yokassa_payment_id: ykData.id,
-      amount: planData.amount,
-      currency: "RUB",
-      status: "pending",
-      plan,
-      metadata: { yookassa_status: ykData.status },
-    });
-
-    return res.json({
-      paymentId: ykData.id,
-      confirmationUrl: ykData.confirmation?.confirmation_url,
-      status: ykData.status,
-    });
+    const result = await createPayment(user.id, plan, supabaseAdmin, returnUrl);
+    return res.json(result);
   } catch (e) {
+    if (e instanceof ApiError) {
+      return res.status(e.status).json({ message: e.message, code: e.code, field: e.field });
+    }
     console.error("[auth-api] /api/payments/create", e);
-    return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
-  }
-});
-
-app.post("/api/payments/webhook", async (req, res) => {
-  try {
-    if (!verifyYookassaWebhookSignature(req)) {
-      return res.status(401).json({ message: "Некорректная подпись webhook", code: "invalid_signature" });
-    }
-
-    const body = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString("utf-8")) : req.body;
-    const event = body?.event;
-    const payment = body?.object;
-    const paymentId = payment?.id;
-    const userId = payment?.metadata?.userId;
-    const plan = payment?.metadata?.plan;
-
-    if (!paymentId) return res.status(200).json({ ok: true });
-
-    if (event === "payment.succeeded") {
-      await supabaseAdmin.from("payments").update({ status: "succeeded" }).eq("yokassa_payment_id", paymentId);
-      if (userId && plan) {
-        await supabaseAdmin.from("subscriptions").update({ status: "inactive" }).eq("user_id", userId).eq("status", "active");
-        const end = new Date();
-        end.setDate(end.getDate() + 30);
-        await supabaseAdmin.from("subscriptions").insert({
-          user_id: userId,
-          status: "active",
-          plan,
-          start_date: new Date().toISOString(),
-          end_date: end.toISOString(),
-          yokassa_subscription_id: paymentId,
-        });
-        await supabaseAdmin.from("user_profiles").update({ role: "business" }).eq("id", userId).eq("role", "client");
-      }
-    }
-
-    if (event === "payment.canceled") {
-      await supabaseAdmin.from("payments").update({ status: "canceled" }).eq("yokassa_payment_id", paymentId);
-    }
-
-    return res.status(200).json({ ok: true });
-  } catch (e) {
-    console.error("[auth-api] /api/payments/webhook", e);
     return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
   }
 });

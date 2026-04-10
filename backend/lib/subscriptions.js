@@ -3,10 +3,6 @@ import { ApiError } from './errors.js';
 import { requireUser } from './auth.js';
 import { throwOnError } from './helpers.js';
 
-function isSubscriptionEnforced() {
-  return import.meta.env?.VITE_ENFORCE_SUBSCRIPTION !== 'false';
-}
-
 export const PLAN_LIMITS = {
   basic: {
     appointmentsPerMonth: 50,
@@ -31,13 +27,17 @@ export const PLAN_LIMITS = {
   },
 };
 
-/** Получить активную подписку текущего пользователя */
-export async function getActiveSubscription() {
-  const user = await requireUser();
-  const { data, error } = await supabase
+/**
+ * Активная подписка по user_id (без привязки к текущей сессии).
+ * @param {import('@supabase/supabase-js').SupabaseClient} client
+ */
+export async function fetchActiveSubscriptionRow(client, userId) {
+  if (!userId) return null;
+
+  const { data, error } = await client
     .from('subscriptions')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -46,16 +46,32 @@ export async function getActiveSubscription() {
   if (error) throw new ApiError(error.message, { code: 'validation_error', status: 400 });
   if (!data) return null;
 
-  // Проверяем срок действия
   if (data.end_date && new Date(data.end_date) < new Date()) {
-    await supabase
-      .from('subscriptions')
-      .update({ status: 'inactive' })
-      .eq('id', data.id);
+    await client.from('subscriptions').update({ status: 'inactive' }).eq('id', data.id);
     return null;
   }
 
   return data;
+}
+
+/**
+ * Требует активную подписку для указанного пользователя (роль business — на стороне вызывающего кода).
+ */
+export async function requireActiveSubscription(userId) {
+  const row = await fetchActiveSubscriptionRow(supabase, userId);
+  if (!row) {
+    throw new ApiError(
+      'Доступ запрещён: нет активной подписки. Оформите тарифный план для продолжения работы.',
+      { code: 'subscription_required', status: 403 }
+    );
+  }
+  return row;
+}
+
+/** Получить активную подписку текущего пользователя */
+export async function getActiveSubscription() {
+  const user = await requireUser();
+  return fetchActiveSubscriptionRow(supabase, user.id);
 }
 
 /** Получить все подписки текущего пользователя */
@@ -83,17 +99,25 @@ export async function getCurrentPlanLimits() {
   return { plan, ...PLAN_LIMITS[plan] };
 }
 
+/** Получить роль пользователя из user_profiles */
+export async function getUserRole(userId) {
+  const { data } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle();
+  return data?.role ?? 'client';
+}
+
 /** Проверить квоту записей на текущий месяц */
 export async function checkAppointmentQuota(businessId) {
-  if (!isSubscriptionEnforced()) return;
-
   const user = await requireUser();
   const role = await getUserRole(user.id);
 
   if (role === 'admin') return;
   if (role === 'client') return;
 
-  const sub = await getActiveSubscription();
+  const sub = await fetchActiveSubscriptionRow(supabase, user.id);
   if (!sub) {
     throw new ApiError(
       'Требуется активная подписка для создания записей. Выберите тарифный план.',
@@ -102,7 +126,7 @@ export async function checkAppointmentQuota(businessId) {
   }
 
   const limits = PLAN_LIMITS[sub.plan];
-  if (limits.appointmentsPerMonth === -1) return; // unlimited
+  if (limits.appointmentsPerMonth === -1) return;
 
   const now = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
@@ -125,14 +149,12 @@ export async function checkAppointmentQuota(businessId) {
 
 /** Проверить квоту услуг */
 export async function checkServicesQuota(businessId) {
-  if (!isSubscriptionEnforced()) return;
-
   const user = await requireUser();
   const role = await getUserRole(user.id);
 
   if (role === 'admin') return;
 
-  const sub = await getActiveSubscription();
+  const sub = await fetchActiveSubscriptionRow(supabase, user.id);
   if (!sub) {
     throw new ApiError(
       'Требуется активная подписка для управления услугами. Выберите тарифный план.',
@@ -158,57 +180,59 @@ export async function checkServicesQuota(businessId) {
   }
 }
 
-/** Получить роль пользователя из user_profiles */
-export async function getUserRole(userId) {
-  const { data } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('id', userId)
-    .maybeSingle();
-  return data?.role ?? 'client';
+const DEFAULT_DURATION_MONTHS = 1;
+
+function computeEndDateMonths(months = DEFAULT_DURATION_MONTHS) {
+  const endDate = new Date();
+  endDate.setMonth(endDate.getMonth() + months);
+  return endDate.toISOString();
 }
 
-/** Активировать подписку после успешного платежа (вызывается из webhook) */
-export async function activateSubscription({ userId, plan, paymentId, durationDays = 30 }) {
-  const endDate = new Date();
-  endDate.setDate(endDate.getDate() + durationDays);
+/**
+ * Активация подписки (service role / webhook). Создаёт новую активную запись, старые active → inactive.
+ */
+export async function activateSubscriptionWithSupabase(client, userId, plan, { paymentId = null, durationMonths = DEFAULT_DURATION_MONTHS } = {}) {
+  if (!PLAN_LIMITS[plan]) {
+    throw new ApiError(`Неизвестный тариф: ${plan}`, { code: 'validation_error', status: 400 });
+  }
 
-  // Деактивируем старые активные подписки
-  await supabase
-    .from('subscriptions')
-    .update({ status: 'inactive' })
-    .eq('user_id', userId)
-    .eq('status', 'active');
+  const endDate = computeEndDateMonths(durationMonths);
 
-  // Создаём новую активную подписку
-  const { data, error } = await supabase
+  await client.from('subscriptions').update({ status: 'inactive' }).eq('user_id', userId).eq('status', 'active');
+
+  const { data, error } = await client
     .from('subscriptions')
     .insert({
       user_id: userId,
       status: 'active',
       plan,
       start_date: new Date().toISOString(),
-      end_date: endDate.toISOString(),
+      end_date: endDate,
       yokassa_subscription_id: paymentId,
     })
     .select()
     .single();
 
-  if (error) throw new ApiError(`Ошибка активации подписки: ${error.message}`, { code: 'validation_error', status: 400 });
+  if (error) {
+    throw new ApiError(`Ошибка активации подписки: ${error.message}`, {
+      code: 'validation_error',
+      status: 400,
+    });
+  }
 
-  // Меняем роль пользователя на business если нужно
-  await supabase
-    .from('user_profiles')
-    .update({ role: 'business' })
-    .eq('id', userId)
-    .eq('role', 'client');
+  await client.from('user_profiles').update({ role: 'business' }).eq('id', userId).eq('role', 'client');
 
   return data;
 }
 
-/** Получить квоты из БД (с кэшем на стороне клиента) */
+/**
+ * Активация из клиента Supabase (anon + JWT). Для webhook используйте activateSubscriptionWithSupabase + service role.
+ */
+export async function activateSubscription(userId, plan, options = {}) {
+  return activateSubscriptionWithSupabase(supabase, userId, plan, options);
+}
+
+/** Получить квоты из БД */
 export async function getPlanQuotas() {
-  return throwOnError(
-    await supabase.from('plan_quotas').select('*').order('price_rub')
-  );
+  return throwOnError(await supabase.from('plan_quotas').select('*').order('price_rub'));
 }

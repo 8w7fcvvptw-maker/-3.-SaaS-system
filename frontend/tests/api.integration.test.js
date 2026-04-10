@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as api from '../../backend/lib/api.js';
+import { supabase } from '../../backend/lib/supabase.js';
 
 // Временные ID для очистки после тестов
 let createdClientId = null;
@@ -16,6 +17,20 @@ let hasBusiness = false;
 beforeAll(async () => {
   await api.signInTestUser();
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id) {
+      await supabase.from('subscriptions').update({ status: 'inactive' }).eq('user_id', user.id);
+      const { error: subErr } = await supabase.from('subscriptions').insert({
+        user_id: user.id,
+        status: 'active',
+        plan: 'basic',
+        start_date: new Date().toISOString(),
+        end_date: new Date(Date.now() + 365 * 86400000).toISOString(),
+      });
+      if (subErr) {
+        console.warn('Тест: не удалось создать активную подписку:', subErr.message);
+      }
+    }
     const biz = await api.getBusiness();
     if (biz?.id) {
       businessId = biz.id;

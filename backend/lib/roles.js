@@ -9,13 +9,8 @@ export const ROLES = {
   ADMIN: 'admin',
 };
 
-function isSubscriptionEnforced() {
-  return import.meta.env?.VITE_ENFORCE_SUBSCRIPTION !== 'false';
-}
-
 /**
  * Получить роль текущего аутентифицированного пользователя.
- * Использует Supabase RPC для чтения из user_profiles.
  */
 export async function getMyRole() {
   const user = await requireUser();
@@ -36,35 +31,6 @@ export async function requireRole(...allowedRoles) {
     );
   }
   return role;
-}
-
-/**
- * Middleware-функция: требовать активную подписку для BUSINESS пользователей.
- * ADMIN всегда проходит.
- * CLIENT не затрагивается (у них другие ограничения).
- */
-export async function requireActiveSubscription() {
-  if (!isSubscriptionEnforced()) {
-    const user = await requireUser();
-    return { user, role: ROLES.ADMIN, subscription: null };
-  }
-
-  const user = await requireUser();
-  const role = await getUserRole(user.id);
-
-  if (role === ROLES.ADMIN) return { user, role, subscription: null };
-  if (role === ROLES.CLIENT) return { user, role, subscription: null };
-
-  // role === 'business' — нужна активная подписка
-  const sub = await getActiveSubscription();
-  if (!sub) {
-    throw new ApiError(
-      'Доступ запрещён: нет активной подписки. Выберите тарифный план для продолжения работы.',
-      { code: 'subscription_required', status: 403 }
-    );
-  }
-
-  return { user, role, subscription: sub };
 }
 
 /**
@@ -96,10 +62,7 @@ export async function setUserRole(targetUserId, newRole) {
  */
 export async function getMyProfile() {
   const user = await requireUser();
-  const [role, subscription] = await Promise.all([
-    getUserRole(user.id),
-    getActiveSubscription(),
-  ]);
+  const [role, subscription] = await Promise.all([getUserRole(user.id), getActiveSubscription()]);
 
   return {
     id: user.id,
