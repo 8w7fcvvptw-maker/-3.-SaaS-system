@@ -25,13 +25,13 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
       await page.getByLabel("Пароль").fill(password);
       await page.getByRole("button", { name: "Войти" }).click();
 
-      await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 45_000 });
+      await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 45_000, waitUntil: "commit" });
 
       if (page.url().includes("/onboarding")) {
         await expect(page.getByRole("heading", { name: "Ваш салон" })).toBeVisible({ timeout: 45_000 });
         await page.locator('form input[type="text"]').first().fill(`Салон E2E ${Date.now()}`);
         await page.getByRole("button", { name: "Создать салон" }).click();
-        await page.waitForURL("**/dashboard", { timeout: 45_000 });
+        await page.waitForURL(/\/dashboard\/?$/, { timeout: 45_000, waitUntil: "commit" });
       }
 
       await expect(page.getByRole("heading", { name: "Дашборд" })).toBeVisible({ timeout: 45_000 });
@@ -99,10 +99,13 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
       await page.getByLabel(/^Имя/).fill(name);
       await page.getByLabel(/^Телефон/).fill(uniquePhone());
       await page.getByRole("button", { name: "Сохранить" }).click();
-      await page.waitForURL("**/clients", { timeout: 60_000 });
+      await page.waitForURL(
+        (url) => /\/clients\/?$/.test(url.pathname) && !url.pathname.includes("/new"),
+        { timeout: 60_000, waitUntil: "commit" },
+      );
 
       await page.getByText(name, { exact: true }).click();
-      await page.waitForURL(/\/clients\/[^/]+$/);
+      await page.waitForURL(/\/clients\/[^/]+$/, { waitUntil: "commit" });
 
       const notesArea = page.getByRole("heading", { name: "Заметки" }).locator("..").locator("textarea").first();
       await notesArea.fill(note);
@@ -128,7 +131,10 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
       await page.getByLabel(/Длительность/).fill("30");
       await page.getByLabel(/Цена/).fill("500");
       await page.getByRole("button", { name: "Сохранить" }).click();
-      await page.waitForURL("**/services", { timeout: 60_000 });
+      await page.waitForURL(
+        (url) => /\/services\/?$/.test(url.pathname) && !url.pathname.includes("/new"),
+        { timeout: 60_000, waitUntil: "commit" },
+      );
 
       await expect(page.getByText(serviceName, { exact: true })).toBeVisible();
 

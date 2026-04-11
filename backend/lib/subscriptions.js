@@ -153,6 +153,8 @@ export async function checkServicesQuota(businessId) {
   const role = await getUserRole(user.id);
 
   if (role === 'admin') return;
+  /** Как у записей: владелец до оплаты часто остаётся с ролью client — квоты тарифа только для business. */
+  if (role === 'client') return;
 
   const sub = await fetchActiveSubscriptionRow(supabase, user.id);
   if (!sub) {
