@@ -23,7 +23,7 @@ loadEnv({ path: path.join(root, "frontend", ".env") });
 loadEnv({ path: path.join(root, "frontend", ".env.local") });
 loadEnv({ path: path.join(root, ".env") });
 
-const PORT = Number(process.env.AUTH_API_PORT || process.env.PORT || 3001);
+const PORT = Number(process.env.PORT || process.env.AUTH_API_PORT || 3000);
 
 function normalizeOrigin(origin) {
   return String(origin).replace(/\/$/, "");
@@ -313,6 +313,7 @@ app.use((err, _req, res, _next) => {
   res.status(safeStatus).json(body);
 });
 
-app.listen(PORT, "127.0.0.1", () => {
-  console.info(`[auth-api] http://127.0.0.1:${PORT} (POST /api/auth/login, /api/auth/register)`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+  console.info(`[auth-api] http://0.0.0.0:${PORT} — /api/auth/login, /api/auth/register, /api/payments/*`);
 });
