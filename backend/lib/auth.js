@@ -10,9 +10,15 @@ function useAuthHttpApi() {
   );
 }
 
+/** В проде API на другом хосте (Railway): задайте VITE_SERVER_URL. Локально — относительный путь + proxy Vite. */
+function authApiUrl(path) {
+  const base = import.meta.env?.VITE_SERVER_URL?.replace(/\/$/, '');
+  return base ? `${base}${path}` : path;
+}
+
 /** @param {string} path `/api/auth/login` или `/api/auth/register` */
 async function postAuth(path, email, password) {
-  const res = await fetch(path, {
+  const res = await fetch(authApiUrl(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),

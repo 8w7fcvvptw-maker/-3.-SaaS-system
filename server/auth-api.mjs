@@ -148,6 +148,15 @@ app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(corsMiddleware);
 
+/** Проверка, что контейнер Railway поднялся (корень и /health). */
+app.get(["/", "/health"], (_req, res) => {
+  res.json({
+    ok: true,
+    service: "auth-api",
+    endpoints: ["/api/auth/login", "/api/auth/register", "/api/payments/create", "/api/payments/webhook"],
+  });
+});
+
 function getBearerToken(req) {
   const auth = req.headers.authorization || "";
   if (!auth.startsWith("Bearer ")) return null;

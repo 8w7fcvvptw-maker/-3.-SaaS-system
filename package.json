@@ -13,7 +13,8 @@
     "dev:frontend": "npm run dev --prefix frontend",
     "supabase:start": "npx supabase@latest start",
     "supabase:stop": "npx supabase@latest stop",
-    "functions:serve": "npx supabase@latest functions serve notify-appointment-telegram --env-file supabase/.env.functions"
+    "functions:serve": "npx supabase@latest functions serve notify-appointment-telegram --env-file supabase/.env.functions",
+    "plugins:vercel": "npx plugins add vercel/vercel-plugin -t cursor --scope project -y"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.2",
