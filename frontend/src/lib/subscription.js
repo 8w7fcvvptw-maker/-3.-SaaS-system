@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { normalizeBrowserApiBase } from '../../../backend/lib/browserApiBase.js';
 
 export const PLAN_LIMITS = {
   basic: { displayName: 'Basic', appointmentsPerMonth: 50, servicesLimit: 10, priceRub: 990 },
@@ -65,7 +66,9 @@ export async function initiatePayment(plan, serverUrl = '') {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Требуется авторизация');
 
-  const base = serverUrl || (import.meta.env.VITE_SERVER_URL ?? 'http://localhost:3001');
+  const base = normalizeBrowserApiBase(
+    serverUrl || (import.meta.env.VITE_SERVER_URL ?? 'http://localhost:3001'),
+  );
   const returnUrl = `${window.location.origin}/dashboard?payment=success&plan=${plan}`;
 
   const response = await fetch(`${base}/api/payments/create`, {

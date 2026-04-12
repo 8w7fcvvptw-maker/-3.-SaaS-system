@@ -1,6 +1,7 @@
 import { supabase } from './supabase.js';
 import { ApiError } from './errors.js';
 import { assertEmail, assertPassword } from './validation.js';
+import { normalizeBrowserApiBase } from './browserApiBase.js';
 
 /** В браузере по умолчанию вход/регистрация идут через POST /api/auth/* (rate limit). Отключить: VITE_USE_AUTH_API=false */
 function useAuthHttpApi() {
@@ -12,8 +13,7 @@ function useAuthHttpApi() {
 
 /** В проде API на Railway: VITE_SERVER_URL обязателен при сборке Vercel, иначе POST уйдёт на vercel.app → 405. */
 function authApiUrl(path) {
-  const raw = import.meta.env?.VITE_SERVER_URL;
-  const base = typeof raw === 'string' ? raw.replace(/\/$/, '').trim() : '';
+  const base = normalizeBrowserApiBase(import.meta.env?.VITE_SERVER_URL);
   if (import.meta.env.PROD && !base) {
     throw new ApiError(
       'Не задан VITE_SERVER_URL в настройках сборки (Vercel → Environment Variables → Production). Укажите URL API на Railway (https://… .up.railway.app) и сделайте Redeploy.',
@@ -25,11 +25,19 @@ function authApiUrl(path) {
 
 /** @param {string} path `/api/auth/login` или `/api/auth/register` */
 async function postAuth(path, email, password) {
-  const res = await fetch(authApiUrl(path), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
+  let res;
+  try {
+    res = await fetch(authApiUrl(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch {
+    throw new ApiError(
+      'Не удалось связаться с сервером входа (сеть). Частые причины: в Vercel для VITE_SERVER_URL указан http:// — нужен https://; Railway не запущен; в переменных Railway не задан ALLOWED_ORIGINS с точным URL вашего сайта на Vercel.',
+      { code: 'network_error', status: 503 },
+    );
+  }
   let body = {};
   try {
     body = await res.json();
