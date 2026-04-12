@@ -11,16 +11,17 @@ function useAuthHttpApi() {
   );
 }
 
-/** В проде API на Railway: VITE_SERVER_URL обязателен при сборке Vercel, иначе POST уйдёт на vercel.app → 405. */
+/**
+ * URL для POST /api/auth/*:
+ * — если задан VITE_SERVER_URL → прямой вызов Railway (нужен CORS / ALLOWED_ORIGINS);
+ * — иначе относительный путь → локально Vite proxy, на Vercel — serverless-прокси (см. /api в корне репо + AUTH_API_UPSTREAM).
+ */
 function authApiUrl(path) {
-  const base = normalizeBrowserApiBase(import.meta.env?.VITE_SERVER_URL);
-  if (import.meta.env.PROD && !base) {
-    throw new ApiError(
-      'Не задан VITE_SERVER_URL в настройках сборки (Vercel → Environment Variables → Production). Укажите URL API на Railway (https://… .up.railway.app) и сделайте Redeploy.',
-      { code: 'missing_server_url', status: 503 },
-    );
+  const raw = import.meta.env?.VITE_SERVER_URL;
+  if (typeof raw === 'string' && raw.trim()) {
+    return `${normalizeBrowserApiBase(raw)}${path}`;
   }
-  return base ? `${base}${path}` : path;
+  return path;
 }
 
 /** @param {string} path `/api/auth/login` или `/api/auth/register` */
@@ -34,7 +35,7 @@ async function postAuth(path, email, password) {
     });
   } catch {
     throw new ApiError(
-      'Не удалось связаться с сервером входа (сеть). Частые причины: в Vercel для VITE_SERVER_URL указан http:// — нужен https://; Railway не запущен; в переменных Railway не задан ALLOWED_ORIGINS с точным URL вашего сайта на Vercel.',
+      'Не удалось связаться с сервером входа. На Vercel: задайте AUTH_API_UPSTREAM (URL Railway) и оставьте VITE_SERVER_URL пустым для прокси; либо укажите VITE_SERVER_URL с https:// и ALLOWED_ORIGINS на Railway.',
       { code: 'network_error', status: 503 },
     );
   }

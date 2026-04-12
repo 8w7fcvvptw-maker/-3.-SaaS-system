@@ -66,12 +66,15 @@ export async function initiatePayment(plan, serverUrl = '') {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Требуется авторизация');
 
-  const base = normalizeBrowserApiBase(
-    serverUrl || (import.meta.env.VITE_SERVER_URL ?? 'http://localhost:3001'),
-  );
+  const explicit = serverUrl || import.meta.env.VITE_SERVER_URL;
+  const base =
+    typeof explicit === 'string' && explicit.trim()
+      ? normalizeBrowserApiBase(explicit)
+      : '';
   const returnUrl = `${window.location.origin}/dashboard?payment=success&plan=${plan}`;
+  const payUrl = `${base || ''}/api/payments/create`;
 
-  const response = await fetch(`${base}/api/payments/create`, {
+  const response = await fetch(payUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
