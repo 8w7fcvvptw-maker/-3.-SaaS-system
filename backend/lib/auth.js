@@ -14,7 +14,7 @@ function useAuthHttpApi() {
 /**
  * URL для POST /api/auth/*:
  * — если задан VITE_SERVER_URL → прямой вызов Railway (нужен CORS / ALLOWED_ORIGINS);
- * — иначе относительный путь → локально Vite proxy, на Vercel — serverless-прокси (см. /api в корне репо + AUTH_API_UPSTREAM).
+ * — иначе относительный путь → локально Vite proxy, на Vercel — serverless-прокси (папки `api/` в корне репо и `frontend/api/` + AUTH_API_UPSTREAM).
  */
 function authApiUrl(path) {
   const raw = import.meta.env?.VITE_SERVER_URL;
@@ -26,16 +26,21 @@ function authApiUrl(path) {
 
 /** @param {string} path `/api/auth/login` или `/api/auth/register` */
 async function postAuth(path, email, password) {
+  const url = authApiUrl(path);
   let res;
   try {
-    res = await fetch(authApiUrl(path), {
+    res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
   } catch {
+    const proxyHint =
+      import.meta.env.PROD && url.startsWith('/')
+        ? ' Проверьте в Vercel → Settings → General: Root Directory «frontend» или пусто — в репо есть и frontend/api/, и корневой api/. После правок — Redeploy. Нужны AUTH_API_UPSTREAM (Production) и пустой VITE_SERVER_URL для прокси.'
+        : '';
     throw new ApiError(
-      'Не удалось связаться с сервером входа. На Vercel: задайте AUTH_API_UPSTREAM (URL Railway) и оставьте VITE_SERVER_URL пустым для прокси; либо укажите VITE_SERVER_URL с https:// и ALLOWED_ORIGINS на Railway.',
+      `Не удалось связаться с сервером входа.${proxyHint} Либо задайте VITE_SERVER_URL (https://… Railway) и ALLOWED_ORIGINS на Railway.`,
       { code: 'network_error', status: 503 },
     );
   }
