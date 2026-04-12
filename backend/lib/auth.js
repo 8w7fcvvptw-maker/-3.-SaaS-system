@@ -68,7 +68,12 @@ async function postAuth(path, email, password) {
       refresh_token: body.session.refresh_token,
     });
     if (error) {
-      throw new ApiError(error.message || 'Не удалось установить сессию', {
+      let msg = error.message || 'Не удалось установить сессию';
+      if (/fetch|network|failed to reach/i.test(String(msg))) {
+        msg +=
+          ' Проверьте в Vercel переменные VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY, отключите блокировщики для supabase.co, в Supabase Dashboard → Authentication → URL Configuration добавьте ваш домен Vercel в Redirect URLs / Site URL при необходимости.';
+      }
+      throw new ApiError(msg, {
         code: 'auth_failed',
         status: 401,
       });

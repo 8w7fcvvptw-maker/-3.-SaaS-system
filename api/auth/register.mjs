@@ -1,4 +1,4 @@
-import { getUpstreamOrigin, readBodyBuffer } from "../_util.mjs";
+import { getUpstreamOrigin, readBodyBuffer, upstreamFetch, upstreamFetchErrorDetail } from "../_util.mjs";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
   try {
     const buf = await readBodyBuffer(req);
-    const upstream = await fetch(`${origin}/api/auth/register`, {
+    const upstream = await upstreamFetch(`${origin}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: buf.length ? buf : Buffer.from("{}"),
@@ -33,9 +33,10 @@ export default async function handler(req, res) {
     });
     return res.status(upstream.status).send(text);
   } catch (e) {
-    console.error("[vercel-proxy] /api/auth/register", e);
+    const detail = upstreamFetchErrorDetail(e);
+    console.error("[vercel-proxy] /api/auth/register", detail, e);
     return res.status(502).json({
-      message: "Не удалось достучаться до API на Railway (проверьте AUTH_API_UPSTREAM и деплой Railway).",
+      message: `Прокси не смог вызвать Railway (${detail}). Проверьте AUTH_API_UPSTREAM и /health на Railway.`,
       code: "upstream_unreachable",
     });
   }
