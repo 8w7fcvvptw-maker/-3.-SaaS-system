@@ -10,9 +10,16 @@ function useAuthHttpApi() {
   );
 }
 
-/** В проде API на другом хосте (Railway): задайте VITE_SERVER_URL. Локально — относительный путь + proxy Vite. */
+/** В проде API на Railway: VITE_SERVER_URL обязателен при сборке Vercel, иначе POST уйдёт на vercel.app → 405. */
 function authApiUrl(path) {
-  const base = import.meta.env?.VITE_SERVER_URL?.replace(/\/$/, '');
+  const raw = import.meta.env?.VITE_SERVER_URL;
+  const base = typeof raw === 'string' ? raw.replace(/\/$/, '').trim() : '';
+  if (import.meta.env.PROD && !base) {
+    throw new ApiError(
+      'Не задан VITE_SERVER_URL в настройках сборки (Vercel → Environment Variables → Production). Укажите URL API на Railway (https://… .up.railway.app) и сделайте Redeploy.',
+      { code: 'missing_server_url', status: 503 },
+    );
+  }
   return base ? `${base}${path}` : path;
 }
 
