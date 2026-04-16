@@ -15,6 +15,13 @@ import {
   handleYokassaWebhook,
   verifyYokassaWebhookIp,
 } from "../backend/lib/yookassa.js";
+import {
+  initSentry,
+  logBusinessEvent,
+  logError,
+  requestContextMiddleware,
+  requestLogMiddleware,
+} from "./observability.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
@@ -24,6 +31,7 @@ loadEnv({ path: path.join(root, "frontend", ".env.local") });
 loadEnv({ path: path.join(root, ".env") });
 
 const PORT = Number(process.env.PORT || process.env.AUTH_API_PORT || 3000);
+initSentry();
 
 function normalizeOrigin(origin) {
   return String(origin).replace(/\/$/, "");
@@ -146,6 +154,8 @@ const registerLimiter = rateLimit({
 const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
+app.use(requestContextMiddleware);
+app.use(requestLogMiddleware);
 app.use(corsMiddleware);
 
 /** Проверка, что контейнер Railway поднялся (корень и /health). */
@@ -201,12 +211,13 @@ app.post(
       }
 
       await handleYokassaWebhook(req, { supabaseAdmin });
+      logBusinessEvent("payment_webhook_processed", { requestId: req.requestId });
       return res.status(200).json({ ok: true });
     } catch (e) {
       if (e instanceof ApiError) {
         return res.status(e.status).json({ message: e.message, code: e.code });
       }
-      console.error("[auth-api] /api/payments/webhook", e);
+      logError(e, { requestId: req.requestId, route: "/api/payments/webhook" });
       return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
     }
   },
@@ -250,12 +261,16 @@ app.post("/api/auth/register", registerLimiter, async (req, res) => {
         code: "signup_failed",
       });
     }
+    logBusinessEvent("registration", {
+      requestId: req.requestId,
+      userId: data?.user?.id || null,
+    });
     return res.json({ session: data.session, user: data.user });
   } catch (e) {
     if (e instanceof ApiError) {
       return res.status(e.status).json({ message: e.message, code: e.code, field: e.field });
     }
-    console.error("[auth-api] /api/auth/register", e);
+    logError(e, { requestId: req.requestId, route: "/api/auth/register" });
     return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
   }
 });
@@ -282,12 +297,22 @@ app.post("/api/payments/create", async (req, res) => {
     }
 
     const result = await createPayment(user.id, plan, supabaseAdmin, returnUrl);
+    logBusinessEvent("order_created", {
+      requestId: req.requestId,
+      userId: user.id,
+      plan,
+      paymentId: result?.paymentId || null,
+    });
     return res.json(result);
   } catch (e) {
     if (e instanceof ApiError) {
       return res.status(e.status).json({ message: e.message, code: e.code, field: e.field });
     }
-    console.error("[auth-api] /api/payments/create", e);
+    logError(e, {
+      requestId: req.requestId,
+      route: "/api/payments/create",
+      tags: { area: "payments" },
+    });
     return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
   }
 });
@@ -308,7 +333,7 @@ app.use((_req, res) => {
 });
 
 app.use((err, _req, res, _next) => {
-  console.error("[auth-api] unhandled", err);
+  logError(err, { route: "unhandled" });
   const raw = err?.status ?? err?.statusCode ?? 500;
   const status = Number(raw);
   const safeStatus = status >= 400 && status < 600 ? status : 500;

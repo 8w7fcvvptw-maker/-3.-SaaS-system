@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { normalizeBrowserApiBase } from '../../../backend/lib/browserApiBase.js';
+import { captureError, trackBusinessEvent } from './monitoring.js';
 
 export const PLAN_LIMITS = {
   basic: { displayName: 'Basic', appointmentsPerMonth: 50, servicesLimit: 10, priceRub: 990 },
@@ -73,18 +74,30 @@ export async function initiatePayment(plan, serverUrl = '') {
       : '';
   const returnUrl = `${window.location.origin}/dashboard?payment=success&plan=${plan}`;
   const payUrl = `${base || ''}/api/payments/create`;
+  trackBusinessEvent("order_create_requested", { plan });
 
-  const response = await fetch(payUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({ plan, returnUrl }),
-  });
+  let response;
+  try {
+    response = await fetch(payUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ plan, returnUrl }),
+    });
+  } catch (error) {
+    captureError(error, { tags: { area: "payments", action: "create_order" }, extra: { plan } });
+    throw error;
+  }
 
   const data = await response.json();
-  if (!response.ok) throw new Error(data.message || 'Ошибка создания платежа');
+  if (!response.ok) {
+    const error = new Error(data.message || 'Ошибка создания платежа');
+    captureError(error, { tags: { area: "payments", action: "create_order" }, extra: { plan } });
+    throw error;
+  }
+  trackBusinessEvent("order_create_success", { plan });
   return data;
 }
 

@@ -13,6 +13,7 @@ import { Button, Card } from "../../components/ui.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { SAAS_BUSINESS_PROFILE_CHANGED } from "../../lib/saasEvents.js";
 import { formatSupabaseAuthError } from "../../lib/formatSupabaseAuthError.js";
+import { captureError, trackBusinessEvent } from "../../lib/monitoring.js";
 
 function inputClass(hasError) {
   const base =
@@ -164,6 +165,7 @@ export function RegisterPage() {
     setPending(true);
     try {
       const { session } = await signUpWithEmail(email.trim(), password);
+      trackBusinessEvent("registration_success", { hasSession: !!session });
       if (session) {
         await syncAuth();
         navigate("/onboarding", { replace: true });
@@ -171,6 +173,7 @@ export function RegisterPage() {
         setInfo("Проверьте почту: мы отправили ссылку для подтверждения email.");
       }
     } catch (err) {
+      captureError(err, { tags: { area: "auth", action: "register" } });
       setError(formatSupabaseAuthError(err, "Ошибка регистрации"));
     } finally {
       setPending(false);
