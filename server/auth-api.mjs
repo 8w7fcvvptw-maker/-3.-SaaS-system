@@ -22,6 +22,7 @@ import {
   requestContextMiddleware,
   requestLogMiddleware,
 } from "./observability.mjs";
+import { runMonitoringSelfTest } from "./yc-monitoring.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
@@ -180,6 +181,7 @@ app.get(["/", "/health"], (_req, res) => {
       "/api/payments/create",
       "/api/payments/webhook",
       "/api/monitoring/ingest",
+      "/api/monitoring/self-test",
     ],
   });
 });
@@ -241,6 +243,23 @@ app.post(
 );
 
 app.use(express.json({ limit: "32kb" }));
+
+app.post("/api/monitoring/self-test", monitoringIngestLimiter, async (req, res) => {
+  const shared =
+    process.env.YC_SELF_TEST_SECRET?.trim() || process.env.MONITORING_INGEST_SECRET?.trim();
+  if (!shared) {
+    return res.status(503).json({
+      ok: false,
+      message:
+        "Задайте на Railway YC_SELF_TEST_SECRET или MONITORING_INGEST_SECRET и передайте тот же ключ в заголовке x-monitoring-secret.",
+    });
+  }
+  if (req.headers["x-monitoring-secret"] !== shared) {
+    return res.status(403).json({ ok: false, message: "Неверный или отсутствует заголовок x-monitoring-secret" });
+  }
+  const result = await runMonitoringSelfTest();
+  return res.status(result.ok ? 200 : 502).json(result);
+});
 
 app.post("/api/monitoring/ingest", monitoringIngestLimiter, async (req, res) => {
   try {

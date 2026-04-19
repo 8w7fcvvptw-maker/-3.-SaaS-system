@@ -20,7 +20,10 @@
 | `YC_SERVICE_ACCOUNT_ID` | ID сервисного аккаунта |
 | `YC_ACCESS_KEY_ID` | Идентификатор статического ключа |
 | `YC_PRIVATE_KEY` | Приватный ключ PEM (в `.env` одной строкой с `\n` между строками PEM) |
+| `YC_PRIVATE_KEY_BASE64` | Альтернатива: весь PEM, закодированный в Base64 (удобно в Railway, если ломаются переносы строк) |
 | `YC_DEPLOY_ENV` | Произвольная метка окружения в метриках (например `production`) |
+| `YC_MONITORING_DEBUG` | `1` — в лог Railway писать успешные ответы API записи метрик |
+| `YC_SELF_TEST_SECRET` | Опционально: отдельный секрет только для `POST /api/monitoring/self-test` (если не задан — используется `MONITORING_INGEST_SECRET`) |
 
 Имена метрик (можно строить дашборды и алерты):
 
@@ -29,6 +32,31 @@
 - `saas.business.<событие>` — импульсы бизнес-событий (`registration`, `order_created`, `payment_webhook_processed`; labels: `plan`, `payment_id` где уместно).
 
 Секреты сервисного аккаунта **не попадают в браузер**.
+
+### Проверка, что метрики реально доходят
+
+1. В логах Railway после деплоя должно быть событие **`yc.monitoring.ready`** (не `yc.monitoring.disabled` / `init_failed`).
+2. Вызови тестовую запись (замени URL и секрет):
+
+```bash
+curl -sS -X POST "https://ВАШ-СЕРВИС.up.railway.app/api/monitoring/self-test" \
+  -H "x-monitoring-secret: ВАШ_СЕКРЕТ" \
+  -H "Content-Type: application/json"
+```
+
+В ответе `"ok": true` и шаг `"write"` — цепочка JWT → IAM → Monitoring работает. В консоли Yandex: **Monitoring → Обзор метрик / Metrics** → тот же **каталог** (`YC_FOLDER_ID`) → фильтр по сервису **custom** → метрика **`saas.self_test.ping`**. Первые точки могут появиться с задержкой **1–3 минуты**.
+
+3. Если событий ещё не было: приложение шлёт **`saas.auth_api.error`** только при **исключениях** на сервере, **`saas.business.*`** — при регистрации/оплате. Используй **self-test** выше, чтобы точки появились без нагрузки на приложение.
+
+### Частые причины «метрик нет»
+
+| Симптом | Что проверить |
+|--------|----------------|
+| В логах `yc.monitoring.disabled` | Не задан один из `YC_*` или ключ не PEM (нет `BEGIN PRIVATE KEY`). |
+| В логах `IAM 4xx` | Неверный `YC_SERVICE_ACCOUNT_ID` / `YC_ACCESS_KEY_ID` / ключ не от этого аккаунта. |
+| В логах `Monitoring HTTP 403` | У сервисного аккаунта нет роли **`monitoring.writer`** на каталог. |
+| В логах успех, в UI пусто | Открыт **другой каталог** в консоли; фильтр **custom**; подождать 1–3 мин. |
+| Переменная ключа «ломается» в Railway | Используй **`YC_PRIVATE_KEY_BASE64`** (закодируй PEM в Base64 одной строкой). |
 
 ### Ошибки React → Monitoring
 
