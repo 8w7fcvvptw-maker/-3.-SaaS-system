@@ -412,6 +412,14 @@ export function ClientDetails() {
 
   return (
     <BookingLayout currentStep={3}>
+      <button
+        type="button"
+        onClick={() => navigate(`/book/${slug}/calendar`)}
+        className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
+      >
+        <span aria-hidden>←</span>
+        Назад к выбору времени
+      </button>
       <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Ваши данные</h2>
       <p className="text-sm text-gray-500 dark:text-zinc-400 mb-5">Мы отправим подтверждение записи</p>
 
@@ -490,6 +498,14 @@ export function BookingConfirm() {
 
   return (
     <BookingLayout currentStep={4}>
+      <button
+        type="button"
+        onClick={() => navigate(`/book/${slug}/details`)}
+        className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
+      >
+        <span aria-hidden>←</span>
+        Назад к редактированию данных
+      </button>
       <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Подтвердите запись</h2>
 
       <Card className="p-6 space-y-4 mb-4">
