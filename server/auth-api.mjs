@@ -32,7 +32,18 @@ loadEnv({ path: path.join(root, "frontend", ".env.local") });
 loadEnv({ path: path.join(root, ".env") });
 
 const PORT = Number(process.env.PORT || process.env.AUTH_API_PORT || 3000);
-initObservability();
+const ycMonitoringEnvOk = initObservability();
+console.log(
+  JSON.stringify({
+    level: "info",
+    event: "auth-api.boot",
+    yandexMonitoringEnvOk: ycMonitoringEnvOk,
+    hint: ycMonitoringEnvOk
+      ? "yc_vars_ok_see_yc_monitoring_ready_if_logged_above"
+      : "yc_vars_missing_check_YC_FOLDER_ID_YC_SERVICE_ACCOUNT_ID_YC_ACCESS_KEY_ID_YC_PRIVATE_KEY",
+    timestamp: new Date().toISOString(),
+  }),
+);
 
 function normalizeOrigin(origin) {
   return String(origin).replace(/\/$/, "");
@@ -244,22 +255,33 @@ app.post(
 
 app.use(express.json({ limit: "32kb" }));
 
-app.post("/api/monitoring/self-test", monitoringIngestLimiter, async (req, res) => {
+async function handleMonitoringSelfTest(req, res) {
   const shared =
     process.env.YC_SELF_TEST_SECRET?.trim() || process.env.MONITORING_INGEST_SECRET?.trim();
   if (!shared) {
     return res.status(503).json({
       ok: false,
       message:
-        "Задайте на Railway YC_SELF_TEST_SECRET или MONITORING_INGEST_SECRET и передайте тот же ключ в заголовке x-monitoring-secret.",
+        "Задайте MONITORING_INGEST_SECRET (или YC_SELF_TEST_SECRET) на Railway. Передайте тот же ключ заголовком x-monitoring-secret или GET-параметром ?secret= (параметр только для быстрой проверки).",
     });
   }
-  if (req.headers["x-monitoring-secret"] !== shared) {
-    return res.status(403).json({ ok: false, message: "Неверный или отсутствует заголовок x-monitoring-secret" });
+  const fromHeader = req.headers["x-monitoring-secret"];
+  const fromQuery = typeof req.query?.secret === "string" ? req.query.secret : "";
+  const provided = fromHeader || fromQuery;
+  if (provided !== shared) {
+    return res.status(403).json({
+      ok: false,
+      message:
+        "Неверный или пустой секрет. Нужен заголовок x-monitoring-secret или ?secret= — та же строка, что MONITORING_INGEST_SECRET в Railway.",
+    });
   }
   const result = await runMonitoringSelfTest();
   return res.status(result.ok ? 200 : 502).json(result);
-});
+}
+
+/** GET — чтобы проверка открывалась из браузера; POST — предпочтительнее (секрет не светится в URL). */
+app.get("/api/monitoring/self-test", monitoringIngestLimiter, handleMonitoringSelfTest);
+app.post("/api/monitoring/self-test", monitoringIngestLimiter, handleMonitoringSelfTest);
 
 app.post("/api/monitoring/ingest", monitoringIngestLimiter, async (req, res) => {
   try {
