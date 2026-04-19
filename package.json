@@ -17,11 +17,11 @@
     "plugins:vercel": "npx plugins add vercel/vercel-plugin -t cursor --scope project -y"
   },
   "dependencies": {
-    "@sentry/node": "^10.49.0",
     "@supabase/supabase-js": "^2.99.2",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
-    "express-rate-limit": "^7.4.0"
+    "express-rate-limit": "^7.4.0",
+    "yandex-cloud-monitoring-metrics": "^1.1.0"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

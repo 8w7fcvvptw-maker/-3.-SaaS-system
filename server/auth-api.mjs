@@ -16,7 +16,7 @@ import {
   verifyYokassaWebhookIp,
 } from "../backend/lib/yookassa.js";
 import {
-  initSentry,
+  initObservability,
   logBusinessEvent,
   logError,
   requestContextMiddleware,
@@ -31,7 +31,7 @@ loadEnv({ path: path.join(root, "frontend", ".env.local") });
 loadEnv({ path: path.join(root, ".env") });
 
 const PORT = Number(process.env.PORT || process.env.AUTH_API_PORT || 3000);
-initSentry();
+initObservability();
 
 function normalizeOrigin(origin) {
   return String(origin).replace(/\/$/, "");
@@ -151,6 +151,17 @@ const registerLimiter = rateLimit({
   },
 });
 
+const monitoringIngestLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipRateLimit,
+  handler: (_req, res) => {
+    res.status(429).json({ message: "Слишком много запросов мониторинга.", code: "rate_limit" });
+  },
+});
+
 const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
@@ -163,7 +174,13 @@ app.get(["/", "/health"], (_req, res) => {
   res.json({
     ok: true,
     service: "auth-api",
-    endpoints: ["/api/auth/login", "/api/auth/register", "/api/payments/create", "/api/payments/webhook"],
+    endpoints: [
+      "/api/auth/login",
+      "/api/auth/register",
+      "/api/payments/create",
+      "/api/payments/webhook",
+      "/api/monitoring/ingest",
+    ],
   });
 });
 
@@ -225,6 +242,34 @@ app.post(
 
 app.use(express.json({ limit: "32kb" }));
 
+app.post("/api/monitoring/ingest", monitoringIngestLimiter, async (req, res) => {
+  try {
+    const secret = process.env.MONITORING_INGEST_SECRET?.trim();
+    if (secret && req.headers["x-monitoring-secret"] !== secret) {
+      return res.status(403).json({ message: "Доступ запрещён", code: "forbidden" });
+    }
+    const body = req.body || {};
+    if (body.kind !== "error") {
+      return res.status(400).json({ message: "Ожидается kind=error", code: "validation_error" });
+    }
+    const raw = typeof body.message === "string" ? body.message : "";
+    const err = new Error(raw.slice(0, 2000) || "frontend_error");
+    if (typeof body.name === "string") err.name = body.name.slice(0, 120);
+    logError(err, {
+      route: "frontend.ingest",
+      frontend: true,
+      tags: {
+        ...(typeof body.area === "string" ? { area: body.area } : {}),
+        ...(typeof body.action === "string" ? { action: body.action } : {}),
+      },
+    });
+    return res.status(204).end();
+  } catch (e) {
+    logError(e, { requestId: req.requestId, route: "/api/monitoring/ingest" });
+    return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
+  }
+});
+
 app.post("/api/auth/login", loginLimiter, async (req, res) => {
   try {
     const email = req.body?.email;
@@ -243,7 +288,7 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
     if (e instanceof ApiError) {
       return res.status(e.status).json({ message: e.message, code: e.code, field: e.field });
     }
-    console.error("[auth-api] /api/auth/login", e);
+    logError(e, { requestId: req.requestId, route: "/api/auth/login" });
     return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
   }
 });

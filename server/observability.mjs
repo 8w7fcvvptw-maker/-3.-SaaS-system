@@ -1,5 +1,11 @@
 import crypto from "node:crypto";
-import * as Sentry from "@sentry/node";
+import {
+  initYcMonitoring,
+  isYcMonitoringEnabled,
+  reportBusinessEventMetric,
+  reportFrontendErrorMetric,
+  reportServerErrorMetric,
+} from "./yc-monitoring.mjs";
 
 const APP_NAME = "auth-api";
 
@@ -7,26 +13,13 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function safeParseNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
 function sanitizeUrl(url) {
   return typeof url === "string" ? url.split("?")[0] : "";
 }
 
-export function initSentry() {
-  const dsn = process.env.SENTRY_DSN;
-  if (!dsn) return false;
-
-  Sentry.init({
-    dsn,
-    environment: process.env.SENTRY_ENV || process.env.NODE_ENV || "development",
-    tracesSampleRate: safeParseNumber(process.env.SENTRY_TRACES_SAMPLE_RATE) ?? 0.2,
-    release: process.env.APP_VERSION || "local",
-  });
-  return true;
+/** Инициализация наблюдаемости (метрики Yandex Cloud Monitoring при наличии учётных данных). */
+export function initObservability() {
+  return initYcMonitoring();
 }
 
 function emit(level, event, fields = {}) {
@@ -70,6 +63,12 @@ export function requestLogMiddleware(req, res, next) {
 
 export function logBusinessEvent(event, fields = {}) {
   emit("info", `business.${event}`, fields);
+  if (isYcMonitoringEnabled()) {
+    void reportBusinessEventMetric(event, {
+      ...(typeof fields.plan === "string" ? { plan: fields.plan } : {}),
+      ...(fields.paymentId != null ? { paymentId: fields.paymentId } : {}),
+    }).catch(() => {});
+  }
 }
 
 export function logError(error, fields = {}) {
@@ -80,8 +79,11 @@ export function logError(error, fields = {}) {
     stack: error?.stack || null,
     ...fields,
   });
-  Sentry.captureException(error, {
-    tags: fields.tags,
-    extra: fields,
-  });
+  if (!isYcMonitoringEnabled()) return;
+
+  if (fields.frontend) {
+    void reportFrontendErrorMetric(fields).catch(() => {});
+  } else {
+    void reportServerErrorMetric(fields).catch(() => {});
+  }
 }

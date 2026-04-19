@@ -1,12 +1,33 @@
-import * as Sentry from "@sentry/react";
-
 const APP_NAME = "saas-frontend";
 
-let sentryEnabled = false;
+function monitoringIngestEnabled() {
+  return import.meta.env.VITE_YC_MONITORING_INGEST === "true";
+}
 
-function safeParseNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+function monitoringIngestHeaders() {
+  const secret = import.meta.env.VITE_MONITORING_INGEST_SECRET;
+  return {
+    "Content-Type": "application/json",
+    ...(typeof secret === "string" && secret.trim() ? { "x-monitoring-secret": secret.trim() } : {}),
+  };
+}
+
+function postErrorToApi(message, context = {}) {
+  if (!monitoringIngestEnabled() || typeof fetch === "undefined") return;
+  const path = "/api/monitoring/ingest";
+  const body = {
+    kind: "error",
+    message: String(message).slice(0, 2000),
+    name: "FrontendError",
+    ...(context.tags?.area ? { area: String(context.tags.area) } : {}),
+    ...(context.tags?.action ? { action: String(context.tags.action) } : {}),
+  };
+  void fetch(path, {
+    method: "POST",
+    headers: monitoringIngestHeaders(),
+    body: JSON.stringify(body),
+    keepalive: true,
+  }).catch(() => {});
 }
 
 function injectYandexMetrika(counterId) {
@@ -39,44 +60,24 @@ function injectYandexMetrika(counterId) {
   });
 }
 
+/** Инициализация: Метрика + подготовка к отправке ошибок на бэкенд (→ Yandex Cloud Monitoring). */
 export function initMonitoring() {
-  const dsn = import.meta.env.VITE_SENTRY_DSN;
-  const env = import.meta.env.VITE_SENTRY_ENV || import.meta.env.MODE || "development";
-  const release = import.meta.env.VITE_APP_VERSION || "local";
-  const tracesSampleRate = safeParseNumber(import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE) ?? 0.2;
-  const counterId = import.meta.env.VITE_YANDEX_METRIKA_ID;
-
-  if (dsn) {
-    Sentry.init({
-      dsn,
-      environment: env,
-      release,
-      tracesSampleRate,
-    });
-    sentryEnabled = true;
-  }
-
-  injectYandexMetrika(counterId);
+  injectYandexMetrika(import.meta.env.VITE_YANDEX_METRIKA_ID);
 }
 
 export function captureError(error, context = {}) {
-  if (sentryEnabled) {
-    Sentry.captureException(error, {
-      tags: { app: APP_NAME, ...context.tags },
-      extra: context.extra,
-      level: context.level || "error",
-    });
-  }
-
+  const msg = error?.message || String(error);
   const payload = {
     level: "error",
     event: "frontend.error",
     app: APP_NAME,
-    message: error?.message || String(error),
+    message: msg,
     ...(context.extra ? { extra: context.extra } : {}),
     timestamp: new Date().toISOString(),
   };
   console.error(JSON.stringify(payload));
+
+  postErrorToApi(msg, context);
 }
 
 export function trackBusinessEvent(event, data = {}) {
