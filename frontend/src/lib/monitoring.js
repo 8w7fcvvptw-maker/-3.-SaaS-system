@@ -1,4 +1,5 @@
 const APP_NAME = "saas-frontend";
+let metrikaCounterId = null;
 
 function monitoringIngestEnabled() {
   return import.meta.env.VITE_YC_MONITORING_INGEST === "true";
@@ -34,6 +35,9 @@ function injectYandexMetrika(counterId) {
   if (!counterId || typeof window === "undefined") return;
   if (document.getElementById("yandex-metrika-script")) return;
 
+  metrikaCounterId = Number(counterId);
+  if (!Number.isFinite(metrikaCounterId)) return;
+
   window.ym =
     window.ym ||
     function ymProxy(...args) {
@@ -52,7 +56,7 @@ function injectYandexMetrika(counterId) {
     document.head.appendChild(script);
   }
 
-  window.ym(counterId, "init", {
+  window.ym(metrikaCounterId, "init", {
     clickmap: true,
     trackLinks: true,
     accurateTrackBounce: true,
@@ -63,6 +67,12 @@ function injectYandexMetrika(counterId) {
 /** Инициализация: Метрика + подготовка к отправке ошибок на бэкенд (→ Yandex Cloud Monitoring). */
 export function initMonitoring() {
   injectYandexMetrika(import.meta.env.VITE_YANDEX_METRIKA_ID);
+}
+
+export function trackPageView(path) {
+  if (!path || typeof window === "undefined" || typeof window.ym !== "function") return;
+  if (!Number.isFinite(metrikaCounterId)) return;
+  window.ym(metrikaCounterId, "hit", String(path));
 }
 
 export function captureError(error, context = {}) {

@@ -2,7 +2,9 @@
 // ГЛАВНЫЙ ФАЙЛ ПРИЛОЖЕНИЯ — роутинг
 // ============================================
 
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import { trackPageView } from "./lib/monitoring.js";
 
 import { AuthApiBridge } from "./components/AuthApiBridge.jsx";
 
@@ -42,9 +44,20 @@ import {
 
 import { LoginPage, RegisterPage, OnboardingPage } from "./pages/auth/AuthPages.jsx";
 
+function MetrikaRouteTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    trackPageView(`${location.pathname}${location.search}`);
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <MetrikaRouteTracker />
       <AuthApiBridge />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
