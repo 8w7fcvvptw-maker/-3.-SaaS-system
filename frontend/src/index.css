@@ -12,8 +12,15 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  color: rgb(17 24 39);
+  background-color: rgb(250 250 250);
 }
 
 #root {
   min-height: 100vh;
+}
+
+::selection {
+  background: rgb(15 23 42 / 0.14);
 }

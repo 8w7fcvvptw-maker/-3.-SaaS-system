@@ -9,7 +9,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 import {
   Button, Card, KpiCard, Badge, StatusBadge, Avatar, StarRating,
-  PageHeader, EmptyState, LoadingState, ErrorState, ActionErrorBanner,
+  PageHeader, EmptyState, LoadingState, ErrorState, ActionErrorBanner, Icon,
 } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
 import { useMinWidthMd } from "../../hooks/useMinWidthMd.js";
@@ -71,7 +71,7 @@ function SubscriptionBanner() {
   return (
     <div className="mb-6 bg-amber-900/30 border border-amber-500/40 rounded-lg px-4 py-3 flex items-center justify-between gap-4">
       <div className="text-sm text-amber-300">
-        ⚠️ Подписка <strong>{plan?.displayName}</strong> истекает через{" "}
+        Подписка <strong>{plan?.displayName}</strong> истекает через{" "}
         <strong>{daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}</strong>.
       </div>
       <button
@@ -109,10 +109,10 @@ export function Dashboard() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-5 mb-8 items-stretch">
-            <KpiCard label="Записей сегодня" value={todayApps.length} icon="📋" trend="За сегодня" color="violet" />
-            <KpiCard label="Выручка сегодня" value={`${revenue.toLocaleString()} ₽`} icon="💰" trend="Завершённые" color="green" />
-            <KpiCard label="Ожидают подтверждения" value={todayApps.filter(a => a.status === "pending").length} icon="⏳" trend="Ожидают" color="yellow" />
-            <KpiCard label="Отменено" value={cancelled} icon="❌" trend={`Из ${todayApps.length} записей`} color="red" />
+            <KpiCard label="Записей сегодня" value={todayApps.length} icon={<Icon name="clipboard" className="w-4 h-4" />} trend="За сегодня" color="violet" />
+            <KpiCard label="Выручка сегодня" value={`${revenue.toLocaleString()} ₽`} icon={<Icon name="chart" className="w-4 h-4" />} trend="Завершённые" color="green" />
+            <KpiCard label="Ожидают подтверждения" value={todayApps.filter(a => a.status === "pending").length} icon={<Icon name="clock" className="w-4 h-4" />} trend="Ожидают" color="yellow" />
+            <KpiCard label="Отменено" value={cancelled} icon={<Icon name="alertTriangle" className="w-4 h-4" />} trend={`Из ${todayApps.length} записей`} color="red" />
           </div>
 
           <Card className="p-5">
@@ -121,7 +121,7 @@ export function Dashboard() {
               <Button size="sm" variant="ghost" onClick={() => navigate("/calendar")}>Открыть календарь →</Button>
             </div>
             {todayApps.length === 0 ? (
-              <EmptyState icon="📋" title="Нет записей" description="На сегодня записей нет" />
+              <EmptyState icon={<Icon name="calendar" className="w-6 h-6" />} title="Нет записей" description="На сегодня записей нет" />
             ) : (
               <div className="space-y-2">
                 {todayApps.map(a => (
@@ -385,7 +385,9 @@ export function AppointmentEditor() {
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Дата</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500 pointer-events-none text-sm">📅</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500 pointer-events-none">
+                  <Icon name="calendar" className="w-4 h-4" />
+                </span>
                 <input
                   type="date"
                   value={form.date}
@@ -396,7 +398,10 @@ export function AppointmentEditor() {
               </div>
             </div>
             <div className="relative">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">🕐 Время</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 inline-flex items-center gap-1.5">
+                <Icon name="clock" className="w-4 h-4" />
+                Время
+              </label>
               <button
                 type="button"
                 onClick={() => setTimePickerOpen(v => !v)}
@@ -488,7 +493,7 @@ export function AppointmentsList() {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon="📋" title="Нет записей" description="По выбранному фильтру записей нет" />
+        <EmptyState icon={<Icon name="clipboard" className="w-6 h-6" />} title="Нет записей" description="По выбранному фильтру записей нет" />
       ) : (
         <>
           {/* Мобильный вид */}
@@ -613,7 +618,7 @@ export function AppointmentDetail() {
 
   if (loading) return <LoadingState />;
   if (error)   return <ErrorState message={`Запись не найдена: ${error.message}`} />;
-  if (!a)      return <EmptyState icon="📋" title="Запись не найдена" description="" />;
+  if (!a)      return <EmptyState icon={<Icon name="clipboard" className="w-6 h-6" />} title="Запись не найдена" description="" />;
 
   return (
     <div>
@@ -753,7 +758,7 @@ export function ClientsPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon="👤" title="Клиенты не найдены" description="Попробуйте изменить запрос" />
+        <EmptyState icon={<Icon name="users" className="w-6 h-6" />} title="Клиенты не найдены" description="Попробуйте изменить запрос" />
       ) : isMdUp ? (
           <Card>
             <table className="w-full text-sm">
@@ -942,7 +947,7 @@ export function ClientProfile() {
 
   if (loading) return <LoadingState />;
   if (error)   return <ErrorState message={error.message} />;
-  if (!c)      return <EmptyState icon="👤" title="Клиент не найден" description="" />;
+  if (!c)      return <EmptyState icon={<Icon name="user" className="w-6 h-6" />} title="Клиент не найден" description="" />;
   const tags = c.tags ?? [];
 
   return (
@@ -1026,7 +1031,7 @@ export function ClientProfile() {
                   <div className="font-semibold text-gray-900">{(a.price ?? 0).toLocaleString()} ₽</div>
                 </div>
               )) : (
-                <EmptyState icon="📋" title="Нет записей" description="История визитов пуста" />
+                <EmptyState icon={<Icon name="clipboard" className="w-6 h-6" />} title="Нет записей" description="История визитов пуста" />
               )}
             </div>
           </Card>
@@ -1099,7 +1104,10 @@ export function ServicesPage() {
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{s.description}</p>
             <div className="flex items-center justify-between text-sm mb-3">
-              <span className="text-gray-500 dark:text-gray-400">⏱ {s.duration} мин · {s.category}</span>
+              <span className="text-gray-500 dark:text-gray-400 inline-flex items-center gap-1">
+                <Icon name="clock" className="w-3.5 h-3.5" />
+                {s.duration} мин · {s.category}
+              </span>
               <span className="font-bold text-slate-700 dark:text-zinc-300">{(s.price ?? 0).toLocaleString()} ₽</span>
             </div>
             <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-zinc-700">
@@ -1107,14 +1115,14 @@ export function ServicesPage() {
                 onClick={() => navigate(`/services/${s.id}`)}
                 className="flex-1 text-sm text-center py-1.5 rounded-lg border border-gray-200 dark:border-zinc-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
               >
-                ✏️ Редактировать
+                Редактировать
               </button>
               <button
                 onClick={(e) => handleDelete(e, s.id)}
                 disabled={deletingId === s.id}
                 className="px-4 text-sm py-1.5 rounded-lg border border-red-200 dark:border-red-800 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer disabled:opacity-50"
               >
-                {deletingId === s.id ? "..." : "🗑"}
+                {deletingId === s.id ? "..." : "Удалить"}
               </button>
             </div>
           </Card>
@@ -1155,7 +1163,7 @@ export function ServiceEditor() {
 
   if (loading) return <LoadingState />;
   if (error)   return <ErrorState message={error.message} />;
-  if (!form)   return <EmptyState icon="✂️" title="Услуга не найдена" description="" />;
+  if (!form)   return <EmptyState icon={<Icon name="scissors" className="w-6 h-6" />} title="Услуга не найдена" description="" />;
 
   const u = (f) => (e) => {
     setForm(p => ({ ...p, [f]: e.target.value }));
@@ -1422,7 +1430,10 @@ export function StaffPage() {
                 </div>
               </div>
               <div className="text-xs text-gray-500 dark:text-zinc-400 mb-2">{s.specialization}</div>
-              <div className="text-xs text-gray-400 dark:text-zinc-500">🕐 {s.working_hours ?? s.workingHours}</div>
+              <div className="text-xs text-gray-400 dark:text-zinc-500 inline-flex items-center gap-1">
+                <Icon name="clock" className="w-3.5 h-3.5" />
+                {s.working_hours ?? s.workingHours}
+              </div>
               <div className="mt-3 flex flex-wrap gap-1">
                 {svcIds.map(sid => {
                   const sv = svcMap[sid];
@@ -1450,7 +1461,7 @@ export function StaffProfile() {
 
   if (loading) return <LoadingState />;
   if (error)   return <ErrorState message={error.message} />;
-  if (!s)      return <EmptyState icon="👤" title="Сотрудник не найден" description="" />;
+  if (!s)      return <EmptyState icon={<Icon name="user" className="w-6 h-6" />} title="Сотрудник не найден" description="" />;
 
   const apps   = staffApps ?? [];
   const svcMap = Object.fromEntries((services ?? []).map(sv => [sv.id, sv]));
@@ -1694,10 +1705,10 @@ export function AnalyticsPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4 mb-6 items-stretch">
-        <KpiCard label="Выручка за месяц" value={revenue.length ? `${(revenue[revenue.length - 1]?.revenue ?? 0).toLocaleString()} ₽` : "—"} icon="💰" color="violet" />
-        <KpiCard label="Записей за месяц" value={revenue.length ? (revenue[revenue.length - 1]?.bookings ?? "—") : "—"} icon="📋" color="green" />
-        <KpiCard label="Всего клиентов"   value={(appointments ?? []).length} icon="👤" color="yellow" />
-        <KpiCard label="Активных услуг"   value={activeServices.length} icon="📊" color="teal" />
+        <KpiCard label="Выручка за месяц" value={revenue.length ? `${(revenue[revenue.length - 1]?.revenue ?? 0).toLocaleString()} ₽` : "—"} icon={<Icon name="chart" className="w-4 h-4" />} color="violet" />
+        <KpiCard label="Записей за месяц" value={revenue.length ? (revenue[revenue.length - 1]?.bookings ?? "—") : "—"} icon={<Icon name="clipboard" className="w-4 h-4" />} color="green" />
+        <KpiCard label="Всего клиентов"   value={(appointments ?? []).length} icon={<Icon name="users" className="w-4 h-4" />} color="yellow" />
+        <KpiCard label="Активных услуг"   value={activeServices.length} icon={<Icon name="scissors" className="w-4 h-4" />} color="teal" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2043,8 +2054,8 @@ export function SettingsPage() {
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Тема интерфейса</h3>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { id: "light", icon: "☀️", label: "Светлая",  desc: "Белый фон, тёмный текст" },
-              { id: "dark",  icon: "🌙", label: "Тёмная",   desc: "Тёмный фон, светлый текст" },
+              { id: "light", icon: <Icon name="sun" className="w-6 h-6" />, label: "Светлая",  desc: "Белый фон, тёмный текст" },
+              { id: "dark",  icon: <Icon name="moon" className="w-6 h-6" />, label: "Тёмная",   desc: "Тёмный фон, светлый текст" },
             ].map(t => (
               <button key={t.id} onClick={() => setTheme(t.id)}
                 className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${theme === t.id ? "border-slate-400 bg-slate-50 dark:bg-zinc-800/60 dark:border-zinc-600" : "border-gray-200 dark:border-zinc-600 hover:border-gray-300 dark:hover:border-zinc-500"}`}>

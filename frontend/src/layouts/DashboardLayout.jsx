@@ -10,17 +10,18 @@ import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useAsync } from "../hooks/useAsync.js";
 import { getBusiness, signOut } from "../lib/api.js";
+import { Icon } from "../components/ui.jsx";
 
 const navItems = [
-  { to: "/dashboard",    icon: "📊", label: "Дашборд" },
-  { to: "/calendar",     icon: "📅", label: "Календарь" },
-  { to: "/appointments", icon: "📋", label: "Записи" },
-  { to: "/clients",      icon: "👥", label: "Клиенты" },
-  { to: "/services",     icon: "✂️",  label: "Услуги" },
-  { to: "/staff",        icon: "👤", label: "Сотрудники" },
-  { to: "/messages",     icon: "💬", label: "Уведомления" },
-  { to: "/analytics",    icon: "📈", label: "Аналитика" },
-  { to: "/settings",     icon: "⚙️",  label: "Настройки" },
+  { to: "/dashboard", icon: "chart", label: "Дашборд" },
+  { to: "/calendar", icon: "calendar", label: "Календарь" },
+  { to: "/appointments", icon: "clipboard", label: "Записи" },
+  { to: "/clients", icon: "users", label: "Клиенты" },
+  { to: "/services", icon: "scissors", label: "Услуги" },
+  { to: "/staff", icon: "user", label: "Сотрудники" },
+  { to: "/messages", icon: "message", label: "Уведомления" },
+  { to: "/analytics", icon: "analytics", label: "Аналитика" },
+  { to: "/settings", icon: "settings", label: "Настройки" },
 ];
 
 // Первые 4 пункта + «Ещё» для нижней мобильной панели
@@ -50,16 +51,18 @@ export default function DashboardLayout({ children }) {
   };
 
   return (
-    <div className="flex h-screen bg-zinc-50/80 dark:bg-zinc-950 overflow-hidden">
+    <div className="flex h-screen bg-zinc-50/90 dark:bg-zinc-950 overflow-hidden">
 
       {/* ════════════════════════════════════
           ДЕСКТОП: боковая панель (скрыта на мобильном)
       ════════════════════════════════════ */}
-      <aside className="hidden md:flex w-56 bg-white dark:bg-zinc-900 border-r border-gray-200/90 dark:border-zinc-800 flex-col shrink-0">
+      <aside className="hidden md:flex w-60 bg-white dark:bg-zinc-900 border-r border-gray-200/90 dark:border-zinc-800 flex-col shrink-0">
 
         <div className="p-4 border-b border-gray-200 dark:border-zinc-700">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">✂️</span>
+            <span className="w-10 h-10 rounded-xl bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-900 flex items-center justify-center">
+              <Icon name="scissors" className="w-5 h-5" />
+            </span>
             <div>
               <div className="font-bold text-gray-900 dark:text-white text-sm leading-tight">
                 {biz?.name ?? "Мой салон"}
@@ -83,7 +86,9 @@ export default function DashboardLayout({ children }) {
                     }`
                   }
                 >
-                  <span>{item.icon}</span>
+                  <span className="w-5 h-5 flex items-center justify-center text-gray-500 dark:text-zinc-400">
+                    <Icon name={item.icon} className="w-4 h-4" />
+                  </span>
                   <span>{item.label}</span>
                 </NavLink>
               </li>
@@ -97,7 +102,8 @@ export default function DashboardLayout({ children }) {
             onClick={() => navigate(publicBookPath)}
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer"
           >
-            🔗 Публичная запись
+            <Icon name="link" className="w-3.5 h-3.5" />
+            Публичная запись
           </button>
         </div>
       </aside>
@@ -111,7 +117,9 @@ export default function DashboardLayout({ children }) {
         <header className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border-b border-gray-200/90 dark:border-zinc-800 px-4 py-3.5 flex items-center justify-between shrink-0">
           {/* Логотип на мобильном */}
           <div className="flex items-center gap-2 md:hidden">
-            <span className="text-xl">✂️</span>
+            <span className="w-8 h-8 rounded-lg bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-900 flex items-center justify-center">
+              <Icon name="scissors" className="w-4 h-4" />
+            </span>
             <span className="font-bold text-gray-900 dark:text-white text-sm truncate max-w-[10rem]">
               {biz?.name ?? "Салон"}
             </span>
@@ -124,14 +132,14 @@ export default function DashboardLayout({ children }) {
               onClick={toggleTheme}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
             >
-              {theme === "light" ? "🌙" : "☀️"}
+              {theme === "light" ? <Icon name="moon" className="w-4 h-4" /> : <Icon name="sun" className="w-4 h-4" />}
             </button>
             <div className="relative">
               <button
                 onClick={() => setNotificationsOpen(v => !v)}
                 className="relative text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
               >
-                🔔
+                <Icon name="bell" className="w-4 h-4" />
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center leading-none">3</span>
               </button>
               {notificationsOpen && (
@@ -188,13 +196,13 @@ export default function DashboardLayout({ children }) {
                       onClick={() => { setAccountMenuOpen(false); navigate("/settings"); }}
                       className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-700"
                     >
-                      ⚙️ Настройки
+                      Настройки
                     </button>
                     <button
                       onClick={() => { setAccountMenuOpen(false); navigate("/dashboard"); }}
                       className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-700"
                     >
-                      📊 Дашборд
+                      Дашборд
                     </button>
                     <div className="border-t border-gray-100 dark:border-zinc-700">
                       <button
@@ -236,7 +244,9 @@ export default function DashboardLayout({ children }) {
                 }`
               }
             >
-              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="text-lg leading-none">
+                <Icon name={item.icon} className="w-5 h-5" />
+              </span>
               <span className="leading-none">{item.label}</span>
             </NavLink>
           ))}
@@ -246,7 +256,7 @@ export default function DashboardLayout({ children }) {
             onClick={() => setMobileMenuOpen(true)}
             className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs text-gray-400 dark:text-gray-500 cursor-pointer"
           >
-            <span className="text-lg leading-none">☰</span>
+            <span className="text-lg leading-none"><Icon name="menu" className="w-5 h-5" /></span>
             <span className="leading-none">Ещё</span>
           </button>
         </div>
@@ -282,7 +292,7 @@ export default function DashboardLayout({ children }) {
                     }`
                   }
                 >
-                  <span className="text-2xl">{item.icon}</span>
+                  <span className="text-2xl text-gray-500 dark:text-zinc-300"><Icon name={item.icon} className="w-6 h-6" /></span>
                   <span className="text-center leading-tight">{item.label}</span>
                 </NavLink>
               ))}
@@ -297,7 +307,8 @@ export default function DashboardLayout({ children }) {
                 }}
                 className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-zinc-700 rounded-lg"
               >
-                🔗 Публичная запись
+                <Icon name="link" className="w-3.5 h-3.5" />
+                Публичная запись
               </button>
             </div>
           </div>

@@ -11,6 +11,10 @@ function useAuthHttpApi() {
   );
 }
 
+function isNetworkAuthApiError(error) {
+  return error instanceof ApiError && error.code === 'network_error';
+}
+
 /**
  * URL для POST /api/auth/*:
  * — если задан VITE_SERVER_URL → прямой вызов Railway (нужен CORS / ALLOWED_ORIGINS);
@@ -104,7 +108,12 @@ export async function signInWithEmail(email, password) {
   const e = assertEmail(email);
   const p = assertPassword(password);
   if (useAuthHttpApi()) {
-    return postAuth('/api/auth/login', e, p);
+    try {
+      return await postAuth('/api/auth/login', e, p);
+    } catch (error) {
+      // Fallback keeps login available when /api proxy or upstream auth API is temporarily unreachable.
+      if (!isNetworkAuthApiError(error)) throw error;
+    }
   }
   const { data, error } = await supabase.auth.signInWithPassword({ email: e, password: p });
   if (error) throw new ApiError(error.message || 'Не удалось войти', { code: 'auth_failed', status: 401 });
@@ -115,7 +124,12 @@ export async function signUpWithEmail(email, password) {
   const e = assertEmail(email);
   const p = assertPassword(password);
   if (useAuthHttpApi()) {
-    return postAuth('/api/auth/register', e, p);
+    try {
+      return await postAuth('/api/auth/register', e, p);
+    } catch (error) {
+      // Fallback keeps registration available when /api proxy or upstream auth API is temporarily unreachable.
+      if (!isNetworkAuthApiError(error)) throw error;
+    }
   }
   const { data, error } = await supabase.auth.signUp({ email: e, password: p });
   if (error) {

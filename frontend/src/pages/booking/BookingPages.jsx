@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import BookingLayout from "../../layouts/BookingLayout";
-import { Button, Card, StarRating, Avatar, LoadingState, ErrorState } from "../../components/ui";
+import { Button, Card, StarRating, Avatar, LoadingState, ErrorState, Icon } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
 import { useBooking } from "../../context/BookingContext";
 import { getActiveServices, getStaff, getTimeSlots, getBusySlots, createPublicAppointment } from "../../lib/api";
@@ -110,8 +110,8 @@ export function BookingLanding() {
       <div className="space-y-6">
         <Card className="p-6">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 bg-slate-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center text-3xl">
-              {biz.logo ?? "🏢"}
+            <div className="w-16 h-16 bg-slate-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center text-slate-700 dark:text-zinc-200">
+              {biz.logo ? biz.logo : <Icon name="scissors" className="w-8 h-8" />}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
@@ -121,9 +121,9 @@ export function BookingLanding() {
               </div>
               <p className="text-sm text-gray-600 dark:text-zinc-400 mb-3">{biz.description}</p>
               <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-zinc-400">
-                <span>📍 {biz.address}</span>
-                <span>📞 {biz.phone}</span>
-                <span>🕐 {biz.hours}</span>
+                <span className="inline-flex items-center gap-1.5"><Icon name="mapPin" className="w-4 h-4" /> {biz.address}</span>
+                <span className="inline-flex items-center gap-1.5"><Icon name="phone" className="w-4 h-4" /> {biz.phone}</span>
+                <span className="inline-flex items-center gap-1.5"><Icon name="clock" className="w-4 h-4" /> {biz.hours}</span>
               </div>
             </div>
           </div>
@@ -133,7 +133,7 @@ export function BookingLanding() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Доступные услуги</h2>
           <div className="space-y-2">
             {svcs.map(s => (
-              <Card key={s.id} className="p-4 flex items-center justify-between">
+              <Card key={s.id} className="p-4 flex items-center justify-between hover:border-slate-300/80 dark:hover:border-zinc-500 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s.color }} />
                   <div>
@@ -162,7 +162,8 @@ export function BookingLanding() {
         </div>
 
         <Button size="lg" className="w-full justify-center" onClick={() => navigate(`/book/${slug}/services`)}>
-          Записаться →
+          Записаться
+          <Icon name="chevronRight" className="w-4 h-4" />
         </Button>
       </div>
     </BookingLayout>
@@ -216,7 +217,7 @@ export function ServiceSelection() {
         {filtered.map(s => (
           <Card
             key={s.id}
-            className="p-4 cursor-pointer hover:border-slate-300 dark:hover:border-zinc-600 transition-colors border border-transparent dark:border-zinc-700"
+            className="p-4 cursor-pointer hover:border-slate-300 dark:hover:border-zinc-600 hover:shadow-sm transition-all border border-transparent dark:border-zinc-700"
             onClick={() => selectService(s)}
           >
             <div className="flex items-center justify-between">
@@ -264,7 +265,7 @@ export function StaffSelection() {
         {staff.map(s => (
           <Card
             key={s.id}
-            className="p-4 cursor-pointer hover:border-slate-300 dark:hover:border-zinc-600 transition-colors border border-transparent dark:border-zinc-700"
+            className="p-4 cursor-pointer hover:border-slate-300 dark:hover:border-zinc-600 hover:shadow-sm transition-all border border-transparent dark:border-zinc-700"
             onClick={() => selectStaff(s)}
           >
             <div className="flex items-center gap-4">
@@ -275,9 +276,12 @@ export function StaffSelection() {
                   <StarRating rating={s.rating ?? 0} />
                 </div>
                 <div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">{s.role} · {s.specialization}</div>
-                <div className="text-xs text-slate-600 dark:text-zinc-400 font-medium">⏰ {s.next_available ?? s.nextAvailable ?? "Уточните время"}</div>
+                <div className="text-xs text-slate-600 dark:text-zinc-400 font-medium inline-flex items-center gap-1">
+                  <Icon name="clock" className="w-3.5 h-3.5" />
+                  {s.next_available ?? s.nextAvailable ?? "Уточните время"}
+                </div>
               </div>
-              <span className="text-gray-300 dark:text-zinc-600 text-xl">›</span>
+              <Icon name="chevronRight" className="w-5 h-5 text-gray-300 dark:text-zinc-600" />
             </div>
           </Card>
         ))}
@@ -412,14 +416,6 @@ export function ClientDetails() {
 
   return (
     <BookingLayout currentStep={3}>
-      <button
-        type="button"
-        onClick={() => navigate(`/book/${slug}/calendar`)}
-        className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
-      >
-        <span aria-hidden>←</span>
-        Назад к выбору времени
-      </button>
       <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Ваши данные</h2>
       <p className="text-sm text-gray-500 dark:text-zinc-400 mb-5">Мы отправим подтверждение записи</p>
 
@@ -498,14 +494,6 @@ export function BookingConfirm() {
 
   return (
     <BookingLayout currentStep={4}>
-      <button
-        type="button"
-        onClick={() => navigate(`/book/${slug}/details`)}
-        className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
-      >
-        <span aria-hidden>←</span>
-        Назад к редактированию данных
-      </button>
       <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Подтвердите запись</h2>
 
       <Card className="p-6 space-y-4 mb-4">
@@ -601,8 +589,8 @@ export function BookingSuccess() {
   return (
     <BookingLayout>
       <div className="text-center py-8">
-        <div className="w-20 h-20 bg-slate-100 dark:bg-zinc-800 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">
-          ✅
+        <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Icon name="checkCircle" className="w-10 h-10" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Запись подтверждена!</h2>
         <p className="text-gray-500 dark:text-zinc-400 mb-6">Мы отправили подтверждение на ваш телефон</p>
@@ -635,17 +623,19 @@ export function BookingSuccess() {
 
         <div className="space-y-3">
           <Button variant="secondary" className="w-full justify-center" type="button" onClick={handleAddToCalendar}>
-            📅 Добавить в календарь
+            <Icon name="calendar" className="w-4 h-4" />
+            Добавить в календарь
           </Button>
           <Button variant="secondary" className="w-full justify-center">
-            📞 {clientPhone || business?.phone || "+7 (495) 000-00-00"}
+            <Icon name="phone" className="w-4 h-4" />
+            {clientPhone || business?.phone || "+7 (495) 000-00-00"}
           </Button>
           <button
             type="button"
             onClick={() => navigate(`/book/${slug}`)}
             className="text-sm text-gray-400 dark:text-zinc-500 hover:text-slate-800 dark:hover:text-zinc-200 transition-colors cursor-pointer"
           >
-            ← Вернуться к главной
+            Вернуться к главной
           </button>
         </div>
       </div>
