@@ -8,6 +8,72 @@ export const PLAN_LIMITS = {
   unlimited: { displayName: 'Unlimited', appointmentsPerMonth: -1, servicesLimit: -1, priceRub: 9990 },
 };
 
+export const SUBSCRIPTION_STATUSES = {
+  trial: 'trial',
+  active: 'active',
+  past_due: 'past_due',
+  canceled: 'canceled',
+  inactive: 'inactive',
+};
+
+const ENTITLED_STATUSES = new Set([SUBSCRIPTION_STATUSES.trial, SUBSCRIPTION_STATUSES.active]);
+const STATUS_PRIORITY = [
+  SUBSCRIPTION_STATUSES.active,
+  SUBSCRIPTION_STATUSES.trial,
+  SUBSCRIPTION_STATUSES.past_due,
+  SUBSCRIPTION_STATUSES.canceled,
+  SUBSCRIPTION_STATUSES.inactive,
+];
+
+function normalizeRole(rawRole) {
+  const role = String(rawRole ?? '').trim().toLowerCase();
+  if (role === 'admin' || role === 'business' || role === 'client') return role;
+  if (role === 'owner') return 'business';
+  if (role === 'customer') return 'client';
+  return 'client';
+}
+
+function normalizeSubscriptionStatus(rawStatus) {
+  const status = String(rawStatus ?? '').trim().toLowerCase();
+  if (status === 'cancelled') return SUBSCRIPTION_STATUSES.canceled;
+  if (status === SUBSCRIPTION_STATUSES.trial) return SUBSCRIPTION_STATUSES.trial;
+  if (status === SUBSCRIPTION_STATUSES.active) return SUBSCRIPTION_STATUSES.active;
+  if (status === SUBSCRIPTION_STATUSES.past_due) return SUBSCRIPTION_STATUSES.past_due;
+  if (status === SUBSCRIPTION_STATUSES.canceled) return SUBSCRIPTION_STATUSES.canceled;
+  return SUBSCRIPTION_STATUSES.inactive;
+}
+
+function normalizeSubscriptionRow(row) {
+  if (!row) return null;
+  const status = normalizeSubscriptionStatus(row.status);
+  const expiresAt = row.end_date ? new Date(row.end_date) : null;
+  const expired =
+    expiresAt instanceof Date &&
+    !Number.isNaN(expiresAt.valueOf()) &&
+    expiresAt < new Date();
+  return {
+    ...row,
+    status: expired && ENTITLED_STATUSES.has(status) ? SUBSCRIPTION_STATUSES.past_due : status,
+  };
+}
+
+function pickCurrentSubscription(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const normalized = rows.map(normalizeSubscriptionRow).filter(Boolean);
+  if (!normalized.length) return null;
+  normalized.sort((left, right) => {
+    const leftRank = STATUS_PRIORITY.indexOf(left.status);
+    const rightRank = STATUS_PRIORITY.indexOf(right.status);
+    if (leftRank !== rightRank) return leftRank - rightRank;
+    return new Date(right.created_at ?? 0).valueOf() - new Date(left.created_at ?? 0).valueOf();
+  });
+  return normalized[0];
+}
+
+function hasEntitlement(status) {
+  return ENTITLED_STATUSES.has(normalizeSubscriptionStatus(status));
+}
+
 /** Получить активную подписку текущего пользователя */
 export async function getActiveSubscription() {
   const { data: { user } } = await supabase.auth.getUser();
@@ -17,16 +83,13 @@ export async function getActiveSubscription() {
     .from('subscriptions')
     .select('*')
     .eq('user_id', user.id)
-    .eq('status', 'active')
+    .in('status', ['active', 'trial'])
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data) return null;
-
-  // Проверить срок
-  if (data.end_date && new Date(data.end_date) < new Date()) return null;
-  return data;
+    .limit(10);
+  if (error) return null;
+  const row = pickCurrentSubscription(data ?? []);
+  if (!row) return null;
+  return hasEntitlement(row.status) ? row : null;
 }
 
 /** Получить роль текущего пользователя */
@@ -40,25 +103,68 @@ export async function getMyRole() {
     .eq('id', user.id)
     .maybeSingle();
 
-  return data?.role ?? 'client';
+  return normalizeRole(data?.role ?? 'client');
 }
 
-/** Получить полный профиль с ролью и подпиской */
+async function getOwnBusiness() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('user_id', user.id)
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return data?.id ? data : null;
+}
+
+/** Получить полный профиль с типом пользователя и доступом */
 export async function getMyProfile() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [roleResult, subscription] = await Promise.all([
+  const [roleResult, ownBusiness, subscriptionsResult] = await Promise.all([
     supabase.from('user_profiles').select('role').eq('id', user.id).maybeSingle(),
-    getActiveSubscription(),
+    getOwnBusiness(),
+    supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10),
   ]);
+  const role = normalizeRole(roleResult.data?.role ?? 'client');
+  const currentSubscription = pickCurrentSubscription(subscriptionsResult.data ?? []);
+  const subscriptionStatus = normalizeSubscriptionStatus(currentSubscription?.status);
+  const isAdmin = role === 'admin';
+  const hasBusiness = !!ownBusiness?.id;
+  const isOwner = !isAdmin && (role === 'business' || hasBusiness);
+  const userType = isAdmin ? 'admin' : isOwner ? 'owner' : 'customer';
+  const hasOwnerEntitlement = hasEntitlement(subscriptionStatus);
+  const needsOnboarding = isOwner && !hasBusiness;
+  const requiresPaywall = isOwner && hasBusiness && !hasOwnerEntitlement;
 
   return {
     id: user.id,
     email: user.email,
-    role: roleResult.data?.role ?? 'client',
-    subscription,
-    hasActiveSubscription: subscription !== null,
+    role,
+    userType,
+    businessId: ownBusiness?.id ?? null,
+    hasBusiness,
+    subscriptionStatus,
+    subscription: currentSubscription,
+    hasOwnerEntitlement,
+    hasActiveSubscription: hasOwnerEntitlement,
+    access: {
+      isAdmin,
+      isOwner,
+      isCustomer: userType === 'customer',
+      needsOnboarding,
+      requiresPaywall,
+      canAccessOwnerApp: isAdmin || (isOwner && !needsOnboarding && !requiresPaywall),
+    },
   };
 }
 

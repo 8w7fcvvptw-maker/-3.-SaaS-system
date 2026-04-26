@@ -571,7 +571,7 @@ export function AppointmentDetail() {
 
   useEffect(() => {
     if (a) setNotes(a.notes || "");
-  }, [a?.id]);
+  }, [a]);
 
   const handleStatusChange = async (status) => {
     if (a.status === status) return;
@@ -931,7 +931,7 @@ export function ClientProfile() {
 
   useEffect(() => {
     if (c) setNotes(c.notes ?? "");
-  }, [c?.id]);
+  }, [c]);
 
   const handleSaveNotes = async () => {
     setNotesError(null);

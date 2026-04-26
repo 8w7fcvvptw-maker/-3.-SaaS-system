@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { Card, Badge, PageHeader, LoadingState, ErrorState } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
-import { getAdminBusinesses, getRevenueData, getPlans, updatePlan } from "../../lib/api";
+import { getAdminBusinesses, getAdminStats, getPlans, updatePlan } from "../../lib/api";
 
 function PlanBadge({ plan }) {
   const colors = { Free: "gray", Pro: "teal", Enterprise: "purple" };
@@ -22,22 +22,9 @@ function StatusDot({ status }) {
 }
 
 export function AdminDashboard() {
-  const { data: adminBusinesses, loading: bizLoading, error: bizError } = useAsync(() => getAdminBusinesses());
-  const { data: revenueData,     loading: revLoading, error: revError } = useAsync(() => getRevenueData());
-
-  const loading = bizLoading || revLoading;
-  const error   = bizError ?? revError;
-
+  const { data: stats, loading, error } = useAsync(() => getAdminStats());
   if (loading) return <LoadingState />;
-  if (error)   return <ErrorState message={error.message} />;
-
-  const businesses  = adminBusinesses ?? [];
-  const revenue     = revenueData     ?? [];
-  const maxRevenue  = revenue.length ? Math.max(...revenue.map(d => d.revenue)) : 1;
-
-  const activeCount  = businesses.filter(b => b.status === "active").length;
-  const paidCount    = businesses.filter(b => b.plan === "Pro" || b.plan === "Enterprise").length;
-  const totalRevenue = businesses.reduce((s, b) => s + (b.revenue ?? 0), 0);
+  if (error) return <ErrorState message={error.message} />;
 
   return (
     <div>
@@ -45,10 +32,10 @@ export function AdminDashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4 mb-6">
         {[
-          ["Всего бизнесов", businesses.length, "text-gray-500", "По данным admin_businesses"],
-          ["Активных", activeCount, "text-gray-500", `из ${businesses.length}`],
-          ["Платных тарифов", paidCount, "text-teal-400", "Pro + Enterprise"],
-          ["Месячный доход", `${totalRevenue.toLocaleString()} ₽`, "text-gray-500", "Сумма поля revenue"],
+          ["Всего пользователей", stats?.totalUsers ?? 0, "text-gray-500", "Платформа"],
+          ["Бизнес-аккаунтов", stats?.totalBusinessUsers ?? 0, "text-gray-500", "Owner-контур"],
+          ["Активных подписок", stats?.activeSubscriptions ?? 0, "text-teal-400", "trial + active"],
+          ["Выручка", `${Number(stats?.totalRevenue ?? 0).toLocaleString()} ₽`, "text-gray-500", "По оплатам"],
         ].map(([label, value, trendColor, trendText]) => (
           <div key={label} className="bg-gray-800 border border-gray-700 rounded-xl p-5">
             <div className="text-gray-400 text-sm mb-2">{label}</div>
@@ -56,39 +43,6 @@ export function AdminDashboard() {
             <div className={`text-xs mt-1 ${trendColor}`}>{trendText}</div>
           </div>
         ))}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
-          <h3 className="font-semibold text-white mb-4">Доход платформы</h3>
-          <div className="flex items-end gap-3 h-36">
-            {revenue.map(d => (
-              <div key={d.month} className="flex flex-col items-center gap-1 flex-1">
-                <div className="text-xs font-medium text-slate-400">{(d.revenue / 1000).toFixed(0)}k</div>
-                <div className="w-full bg-slate-500 rounded-t-md hover:bg-slate-400 transition-colors" style={{ height: `${(d.revenue / maxRevenue) * 100}px` }} />
-                <div className="text-xs text-gray-500">{d.month}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
-          <h3 className="font-semibold text-white mb-4">Новые бизнесы</h3>
-          <div className="space-y-3">
-            {businesses.slice(0, 4).map(b => (
-              <div key={b.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center text-sm">🏢</div>
-                  <div>
-                    <div className="text-sm font-medium text-white">{b.name}</div>
-                    <div className="text-xs text-gray-500">{b.created}</div>
-                  </div>
-                </div>
-                <PlanBadge plan={b.plan} />
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

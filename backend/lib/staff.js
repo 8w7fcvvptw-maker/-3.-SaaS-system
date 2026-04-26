@@ -4,7 +4,7 @@ import { requireSession } from './auth.js';
 import { getOwnerBusinessId } from './business.js';
 import { ApiError } from './errors.js';
 import { requireRowInBusiness } from './access.js';
-import { getUserRole, requireActiveSubscription } from './subscriptions.js';
+import { requireActiveSubscription } from './subscriptions.js';
 import {
   assertId,
   assertNonEmptyString,
@@ -68,7 +68,7 @@ export async function getStaff(businessId) {
 export async function getStaffById(id) {
   await requireSession();
   assertId(id, 'id');
-  const bid = await getOwnerBusinessId();
+  const bid = await getOwnerBusinessId({ requireSubscription: false });
   return throwOnError(
     await supabase.from('staff').select('*').eq('id', id).eq('business_id', bid).single()
   );
@@ -76,11 +76,8 @@ export async function getStaffById(id) {
 
 export async function createStaff(data) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
-  const bid = await getOwnerBusinessId();
+  await requireActiveSubscription(session.user.id);
+  const bid = await getOwnerBusinessId({ requireSubscription: false });
   if (data?.business_id != null && Number(data.business_id) !== bid) {
     throw new ApiError('Нельзя создавать сотрудника для чужого салона', {
       field: 'business_id',
@@ -111,12 +108,9 @@ export async function createStaff(data) {
 
 export async function updateStaff(id, updates) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
+  await requireActiveSubscription(session.user.id);
   assertId(id, 'id');
-  const bid = await getOwnerBusinessId();
+  const bid = await getOwnerBusinessId({ requireSubscription: false });
   await requireRowInBusiness('staff', id, bid, 'Сотрудник');
 
   const safe = {};
@@ -157,10 +151,7 @@ export async function updateStaff(id, updates) {
 
 export async function deleteStaff(id) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
+  await requireActiveSubscription(session.user.id);
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('staff', id, bid, 'Сотрудник');

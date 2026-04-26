@@ -14,6 +14,7 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { SAAS_BUSINESS_PROFILE_CHANGED } from "../../lib/saasEvents.js";
 import { formatSupabaseAuthError } from "../../lib/formatSupabaseAuthError.js";
 import { captureError, trackBusinessEvent } from "../../lib/monitoring.js";
+import { getMyProfile } from "../../lib/subscription.js";
 
 function inputClass(hasError) {
   const base =
@@ -26,7 +27,7 @@ function inputClass(hasError) {
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { syncAuth, user, loading: authLoading } = useAuth();
+  const { syncAuth, user, loading: authLoading, isAdmin } = useAuth();
   const from = location.state?.from?.pathname || "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,7 +37,7 @@ export function LoginPage() {
   const [pending, setPending] = useState(false);
 
   if (!authLoading && user) {
-    return <Navigate to={from} replace />;
+    return <Navigate to={isAdmin ? "/admin" : from} replace />;
   }
 
   const submit = async (e) => {
@@ -53,6 +54,15 @@ export function LoginPage() {
     try {
       await signInWithEmail(email.trim(), password);
       await syncAuth();
+      const profile = await getMyProfile();
+      if (profile?.access?.isAdmin) {
+        navigate("/admin", { replace: true });
+        return;
+      }
+      if (profile?.access?.isOwner && !profile?.hasBusiness) {
+        navigate("/onboarding", { replace: true });
+        return;
+      }
       const biz = await withTimeout(getBusiness(), 20_000, "Таймаут загрузки салона");
       navigate(biz?.id ? from : "/onboarding", { replace: true });
     } catch (err) {
@@ -296,7 +306,7 @@ const onboardingShellClass =
   "min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-900 text-gray-600 dark:text-gray-400 text-sm";
 
 export function OnboardingPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [name, setName] = useState("");
@@ -312,6 +322,10 @@ export function OnboardingPage() {
 
   useEffect(() => {
     if (authLoading || !user) return;
+    if (isAdmin) {
+      navigate("/admin", { replace: true });
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -329,7 +343,7 @@ export function OnboardingPage() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, user?.id, navigate]);
+  }, [authLoading, isAdmin, user, navigate]);
 
   const submit = async (e) => {
     e.preventDefault();

@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
 import { ApiError } from './errors.js';
 import { requireUser } from './auth.js';
-import { getUserRole, getActiveSubscription } from './subscriptions.js';
+import { getUserRole, getMyAccessProfile } from './subscriptions.js';
 
 export const ROLES = {
   CLIENT: 'client',
@@ -62,13 +62,19 @@ export async function setUserRole(targetUserId, newRole) {
  */
 export async function getMyProfile() {
   const user = await requireUser();
-  const [role, subscription] = await Promise.all([getUserRole(user.id), getActiveSubscription()]);
+  const access = await getMyAccessProfile();
 
   return {
     id: user.id,
     email: user.email,
-    role,
-    subscription,
-    hasActiveSubscription: subscription !== null,
+    role: access?.role ?? 'client',
+    userType: access?.userType ?? 'customer',
+    businessId: access?.businessId ?? null,
+    hasBusiness: access?.hasBusiness ?? false,
+    subscriptionStatus: access?.subscriptionStatus ?? 'inactive',
+    subscription: access?.subscription ?? null,
+    hasOwnerEntitlement: access?.hasOwnerEntitlement ?? false,
+    hasActiveSubscription: access?.hasActiveSubscription ?? false,
+    access: access?.access ?? null,
   };
 }

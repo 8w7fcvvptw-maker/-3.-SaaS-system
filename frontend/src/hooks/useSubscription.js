@@ -29,20 +29,27 @@ export function useSubscription() {
   }, [user]);
 
   useEffect(() => {
-    if (!authLoading) {
+    if (authLoading) return undefined;
+    const timerId = setTimeout(() => {
       refresh();
-    }
+    }, 0);
+    return () => clearTimeout(timerId);
   }, [authLoading, refresh]);
 
   return {
     loading: authLoading || state.loading,
     profile: state.profile,
     role: state.profile?.role ?? null,
+    userType: state.profile?.userType ?? null,
+    access: state.profile?.access ?? null,
+    hasBusiness: state.profile?.hasBusiness ?? false,
+    subscriptionStatus: state.profile?.subscriptionStatus ?? 'inactive',
     subscription: state.profile?.subscription ?? null,
     hasActiveSubscription: state.profile?.hasActiveSubscription ?? false,
+    hasOwnerEntitlement: state.profile?.hasOwnerEntitlement ?? false,
     isAdmin: state.profile?.role === 'admin',
-    isBusiness: state.profile?.role === 'business',
-    isClient: state.profile?.role === 'client',
+    isBusiness: state.profile?.userType === 'owner',
+    isClient: state.profile?.userType === 'customer',
     error: state.error,
     refresh,
   };
