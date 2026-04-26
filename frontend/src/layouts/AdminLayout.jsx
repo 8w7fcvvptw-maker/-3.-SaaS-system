@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { signOut } from "../lib/api.js";
 
 const adminNav = [
   { to: "/admin",            icon: "📊", label: "Дашборд", end: true },
@@ -15,6 +16,16 @@ const adminNav = [
 export default function AdminLayout({ children }) {
   const navigate = useNavigate();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  const handleLogout = async () => {
+    setAccountMenuOpen(false);
+    try {
+      await signOut();
+    } catch {
+      // Даже если signOut не ответил, уводим на /login.
+    }
+    navigate("/login", { replace: true });
+  };
 
   return (
     <div className="flex h-screen bg-gray-900 overflow-hidden">
@@ -55,12 +66,9 @@ export default function AdminLayout({ children }) {
         </nav>
 
         <div className="p-3 border-t border-gray-700">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors cursor-pointer"
-          >
-            ← Кабинет бизнеса
-          </button>
+          <div className="px-3 py-2 text-xs text-gray-500">
+            Owner dashboard из admin-контура отключён.
+          </div>
         </div>
       </aside>
 
@@ -84,20 +92,14 @@ export default function AdminLayout({ children }) {
                 <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 border border-gray-600 rounded-xl shadow-lg z-50 overflow-hidden">
                   <div className="px-3 py-2 border-b border-gray-600">
                     <div className="font-medium text-white text-sm">Администратор</div>
-                    <div className="text-xs text-gray-400">admin@platform.ru</div>
+                    <div className="text-xs text-gray-400">platform admin</div>
                   </div>
-                  <button
-                    onClick={() => { setAccountMenuOpen(false); navigate("/dashboard"); }}
-                    className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700"
-                  >
-                    ✂️ Кабинет бизнеса
-                  </button>
                   <div className="border-t border-gray-600">
                     <button
-                      onClick={() => { setAccountMenuOpen(false); navigate("/book/barbershop"); }}
+                      onClick={handleLogout}
                       className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700"
                     >
-                      Выйти
+                      Выйти из аккаунта
                     </button>
                   </div>
                 </div>
@@ -130,11 +132,11 @@ export default function AdminLayout({ children }) {
             </NavLink>
           ))}
           <button
-            onClick={() => navigate("/dashboard")}
-            className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs text-gray-500 cursor-pointer"
+            onClick={handleLogout}
+            className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs text-red-400 cursor-pointer"
           >
-            <span className="text-lg leading-none">←</span>
-            <span className="leading-none">Назад</span>
+            <span className="text-lg leading-none">↩</span>
+            <span className="leading-none">Выйти</span>
           </button>
         </div>
       </nav>
