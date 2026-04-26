@@ -15,6 +15,16 @@ function isNetworkAuthApiError(error) {
   return error instanceof ApiError && error.code === 'network_error';
 }
 
+function isRecoverableAuthApiError(error) {
+  if (!(error instanceof ApiError)) return false;
+  if (isNetworkAuthApiError(error)) return true;
+  return (
+    error.code === 'cors_forbidden' ||
+    error.code === 'proxy_misconfigured' ||
+    error.code === 'upstream_unreachable'
+  );
+}
+
 /**
  * URL для POST /api/auth/*:
  * — если задан VITE_SERVER_URL → прямой вызов Railway (нужен CORS / ALLOWED_ORIGINS);
@@ -153,8 +163,8 @@ export async function signInWithEmail(email, password) {
     try {
       return await postAuth('/api/auth/login', e, p);
     } catch (error) {
-      // Fallback keeps login available when /api proxy or upstream auth API is temporarily unreachable.
-      if (!isNetworkAuthApiError(error)) throw error;
+      // Fallback keeps login available when /api proxy or upstream auth API is unreachable/misconfigured.
+      if (!isRecoverableAuthApiError(error)) throw error;
     }
   }
   const { data, error } = await supabase.auth.signInWithPassword({ email: e, password: p });
@@ -169,8 +179,8 @@ export async function signUpWithEmail(email, password) {
     try {
       return await postAuth('/api/auth/register', e, p);
     } catch (error) {
-      // Fallback keeps registration available when /api proxy or upstream auth API is temporarily unreachable.
-      if (!isNetworkAuthApiError(error)) throw error;
+      // Fallback keeps registration available when /api proxy or upstream auth API is unreachable/misconfigured.
+      if (!isRecoverableAuthApiError(error)) throw error;
     }
   }
   const { data, error } = await supabase.auth.signUp({ email: e, password: p });
