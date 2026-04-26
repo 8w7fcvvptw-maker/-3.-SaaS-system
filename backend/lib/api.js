@@ -13,6 +13,7 @@ export * from './timeSlots.js';
 export * from './admin.js';
 export * from './plans.js';
 export * from './subscriptions.js';
+export * from './notifications.js';
 
 // roles.js — только то, чего нет в subscriptions.js
 export { ROLES, requireRole, setUserRole, getMyRole, getMyProfile } from './roles.js';

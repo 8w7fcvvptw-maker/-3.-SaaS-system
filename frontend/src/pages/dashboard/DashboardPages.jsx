@@ -25,7 +25,8 @@ import {
   getAppointmentsByStaff, getAppointmentsForClient,
   getBusiness, updateBusiness, updateService, createService, deleteService,
   createAppointment, updateAppointment, updateAppointmentStatus, deleteAppointment,
-  getRevenueData,
+  getRevenueData, getPopularServicesStats,
+  getNotificationTemplates, createNotificationTemplate, updateNotificationTemplate, deleteNotificationTemplate, getNotificationEvents,
 } from "../../lib/api";
 
 /** Статусы, в которых разрешено удаление записи (совпадает с backend). */
@@ -1545,103 +1546,218 @@ export function StaffProfile() {
 }
 
 // ── 2.11 Уведомления (/messages) ──────────────────────────────
-const INITIAL_TEMPLATES = [
-  { id: 1, name: "Подтверждение записи", trigger: "При записи",        channel: "SMS + Email", active: true },
-  { id: 2, name: "Напоминание",          trigger: "За 24 часа",         channel: "SMS",         active: true },
-  { id: 3, name: "Отмена записи",        trigger: "При отмене",         channel: "SMS + Email", active: true },
-  { id: 4, name: "Follow-up",            trigger: "Через день после",   channel: "Email",       active: false },
-];
-
 export function MessagesPage() {
-  const { data: appointments, loading, error } = useAsync(() => getAppointments());
-  const [templates, setTemplates] = useState(INITIAL_TEMPLATES);
+  const { data: templates, loading: templatesLoading, error: templatesError, execute: reloadTemplates } =
+    useAsync(() => getNotificationTemplates());
+  const { data: events, loading: eventsLoading, error: eventsError, execute: reloadEvents } =
+    useAsync(() => getNotificationEvents(20));
   const [editingTemplate, setEditingTemplate] = useState(null);
-  const [editForm, setEditForm] = useState({ name: "", trigger: "", channel: "" });
+  const [editForm, setEditForm] = useState({
+    name: "",
+    trigger_event: "",
+    channel: "sms_email",
+    subject: "",
+    body: "",
+    active: true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const templatesArr = templates ?? [];
+  const eventsArr = events ?? [];
 
-  const toggleTemplate = (id) => {
-    setTemplates((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, active: !t.active } : t))
-    );
+  const channelLabel = (channel) => {
+    if (channel === "sms") return "SMS";
+    if (channel === "email") return "Email";
+    if (channel === "sms_email") return "SMS + Email";
+    return channel || "—";
+  };
+
+  const toggleTemplate = async (template) => {
+    setActionError(null);
+    setSaving(true);
+    try {
+      await updateNotificationTemplate(template.id, { active: !template.active });
+      await reloadTemplates();
+    } catch (e) {
+      setActionError(e?.message ?? "Не удалось изменить статус шаблона");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openEdit = (t) => {
     setEditingTemplate(t);
-    setEditForm({ name: t.name, trigger: t.trigger, channel: t.channel });
+    setEditForm({
+      name: t.name ?? "",
+      trigger_event: t.trigger_event ?? "",
+      channel: t.channel ?? "sms_email",
+      subject: t.subject ?? "",
+      body: t.body ?? "",
+      active: t.active !== false,
+    });
+    setActionError(null);
   };
 
-  const saveEdit = () => {
-    if (!editingTemplate) return;
-    setTemplates((prev) =>
-      prev.map((t) =>
-        t.id === editingTemplate.id ? { ...t, ...editForm } : t
-      )
-    );
+  const openCreate = () => {
+    setEditingTemplate({ id: null });
+    setEditForm({
+      name: "Новый шаблон",
+      trigger_event: "appointment_created",
+      channel: "sms_email",
+      subject: "",
+      body: "Текст уведомления",
+      active: true,
+    });
+    setActionError(null);
+  };
+
+  const closeModal = () => {
     setEditingTemplate(null);
+    setEditForm({
+      name: "",
+      trigger_event: "",
+      channel: "sms_email",
+      subject: "",
+      body: "",
+      active: true,
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingTemplate) return;
+    setActionError(null);
+    setSaving(true);
+    try {
+      if (editingTemplate.id == null) {
+        await createNotificationTemplate(editForm);
+      } else {
+        await updateNotificationTemplate(editingTemplate.id, editForm);
+      }
+      await reloadTemplates();
+      closeModal();
+    } catch (e) {
+      setActionError(e?.message ?? "Не удалось сохранить шаблон");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeTemplate = async (templateId) => {
+    if (!window.confirm("Удалить шаблон уведомления?")) return;
+    setActionError(null);
+    setSaving(true);
+    try {
+      await deleteNotificationTemplate(templateId);
+      await reloadTemplates();
+      await reloadEvents();
+    } catch (e) {
+      setActionError(e?.message ?? "Не удалось удалить шаблон");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const eventStatusColor = (status) => {
+    if (status === "sent") return "green";
+    if (status === "failed") return "red";
+    if (status === "skipped") return "yellow";
+    return "gray";
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   };
 
   return (
     <div>
       <PageHeader
         title={
-          <span className="flex flex-wrap items-center gap-2">
-            Уведомления
-            <Badge color="yellow">Заглушка UI</Badge>
-          </span>
+          "Уведомления"
         }
-        subtitle="Шаблоны и переключатели только в браузере, без отправки SMS/Email; блок справа — список записей как пример «лога», не очередь уведомлений."
+        subtitle="Шаблоны и журнал событий берутся из БД. Модель готова для подключения реальных провайдеров SMS/Email."
       />
+      {actionError && <ActionErrorBanner message={actionError} />}
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Шаблоны сообщений</h3>
-          <div className="space-y-2">
-            {templates.map(t => (
-              <Card key={t.id} className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <div className="font-medium text-gray-900 dark:text-white text-sm">{t.name}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{t.trigger} · {t.channel}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => toggleTemplate(t.id)}
-                    className={`w-10 h-5 rounded-full transition-colors cursor-pointer relative flex-shrink-0 ${t.active ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}
-                  >
-                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${t.active ? "translate-x-5" : "translate-x-0.5"}`} />
-                  </button>
-                </div>
-                <Button size="sm" variant="ghost" onClick={() => openEdit(t)}>Редактировать</Button>
-              </Card>
-            ))}
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Шаблоны сообщений</h3>
+            <Button size="sm" onClick={openCreate}>Новый шаблон</Button>
           </div>
+          {templatesLoading ? <LoadingState /> : templatesError ? <ErrorState message={templatesError.message} /> : (
+            templatesArr.length === 0 ? (
+              <EmptyState title="Шаблонов пока нет" description="Добавьте первый шаблон уведомления." />
+            ) : (
+              <div className="space-y-2">
+                {templatesArr.map(t => (
+                  <Card key={t.id} className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">{t.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {t.trigger_event} · {channelLabel(t.channel)}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => toggleTemplate(t)}
+                        className={`w-10 h-5 rounded-full transition-colors cursor-pointer relative flex-shrink-0 disabled:opacity-60 ${t.active ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}
+                      >
+                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${t.active ? "translate-x-5" : "translate-x-0.5"}`} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(t)} disabled={saving}>Редактировать</Button>
+                      <Button size="sm" variant="ghost" onClick={() => removeTemplate(t.id)} disabled={saving}>Удалить</Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )
+          )}
         </div>
 
         <div>
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Недавние записи (пример лога)</h3>
-          {loading ? <LoadingState /> : error ? <ErrorState message={error.message} /> : (
-            <Card>
-              <div className="divide-y divide-gray-50 dark:divide-zinc-700">
-                {(appointments ?? []).slice(0, 5).map(a => (
-                  <div key={a.id} className="px-4 py-3 text-sm">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="font-medium text-gray-900 dark:text-white">{a.client_name ?? a.clientName}</span>
-                      <Badge color="gray">Запись</Badge>
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Лог уведомлений</h3>
+          {eventsLoading ? <LoadingState /> : eventsError ? <ErrorState message={eventsError.message} /> : (
+            eventsArr.length === 0 ? (
+              <Card className="p-4">
+                <EmptyState title="Пока нет событий" description="После постановки уведомлений в очередь события появятся здесь." />
+              </Card>
+            ) : (
+              <Card>
+                <div className="divide-y divide-gray-50 dark:divide-zinc-700">
+                  {eventsArr.map((event) => (
+                    <div key={event.id} className="px-4 py-3 text-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {event.event_type} · {channelLabel(event.channel)}
+                        </span>
+                        <Badge color={eventStatusColor(event.status)}>{event.status}</Badge>
+                      </div>
+                      <div className="text-gray-400 text-xs">
+                        {formatDateTime(event.created_at)} {event.recipient ? `· ${event.recipient}` : ""}
+                      </div>
                     </div>
-                    <div className="text-gray-400 text-xs">Можно связать с реальной очередью уведомлений позже · {a.date} {a.time}</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
+                  ))}
+                </div>
+              </Card>
+            )
           )}
         </div>
       </div>
 
-      {/* Модальное окно редактирования шаблона */}
       {editingTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setEditingTemplate(null)} />
+          <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
           <Card className="relative z-10 p-6 w-full max-w-md mx-4">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Редактировать шаблон</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
+              {editingTemplate.id == null ? "Новый шаблон" : "Редактировать шаблон"}
+            </h3>
             <div className="space-y-3 mb-4">
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Название</label>
@@ -1656,24 +1772,45 @@ export function MessagesPage() {
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Триггер</label>
                 <input
                   type="text"
-                  value={editForm.trigger}
-                  onChange={e => setEditForm(p => ({ ...p, trigger: e.target.value }))}
+                  value={editForm.trigger_event}
+                  onChange={e => setEditForm(p => ({ ...p, trigger_event: e.target.value }))}
                   className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                 />
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Канал</label>
-                <input
-                  type="text"
+                <select
                   value={editForm.channel}
                   onChange={e => setEditForm(p => ({ ...p, channel: e.target.value }))}
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
+                >
+                  <option value="sms">SMS</option>
+                  <option value="email">Email</option>
+                  <option value="sms_email">SMS + Email</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Тема (опционально)</label>
+                <input
+                  type="text"
+                  value={editForm.subject}
+                  onChange={e => setEditForm(p => ({ ...p, subject: e.target.value }))}
+                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Текст</label>
+                <textarea
+                  value={editForm.body}
+                  onChange={e => setEditForm(p => ({ ...p, body: e.target.value }))}
+                  rows={4}
                   className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                 />
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setEditingTemplate(null)}>Отмена</Button>
-              <Button onClick={saveEdit}>Сохранить</Button>
+              <Button variant="secondary" onClick={closeModal} disabled={saving}>Отмена</Button>
+              <Button onClick={saveEdit} disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
             </div>
           </Card>
         </div>
@@ -1688,20 +1825,24 @@ export function AnalyticsPage() {
   const { data: services,    loading: svcLoading }                   = useAsync(() => getServices());
   const { data: staff,       loading: staffLoading }                 = useAsync(() => getStaff());
   const { data: appointments }                                        = useAsync(() => getAppointments());
+  const { data: popularServices, loading: popLoading, error: popError } =
+    useAsync(() => getPopularServicesStats({ days: 90, limit: 5 }));
 
-  const loading = revLoading || svcLoading || staffLoading;
+  const loading = revLoading || svcLoading || staffLoading || popLoading;
   if (loading) return <LoadingState />;
   if (revError) return <ErrorState message={revError.message} />;
+  if (popError) return <ErrorState message={popError.message} />;
 
   const revenue     = revenueData ?? [];
   const maxRevenue  = revenue.length ? Math.max(...revenue.map(d => d.revenue)) : 1;
   const activeServices = (services ?? []).filter(s => s.active);
+  const popular = popularServices ?? [];
 
   return (
     <div>
       <PageHeader
         title="Аналитика"
-        subtitle="Выручка и записи по месяцам — из API; блок «Популярные услуги» ниже помечен как демо-визуализация."
+        subtitle="Выручка и записи по месяцам — из API. Популярность услуг считается по завершённым записям."
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4 mb-6 items-stretch">
@@ -1726,27 +1867,29 @@ export function AnalyticsPage() {
         </Card>
 
         <Card className="p-5">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Популярные услуги</h3>
-            <Badge color="yellow">Демо</Badge>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Длина полос не считается из БД — только порядок списка и цены услуг реальны.</p>
-          <div className="space-y-3">
-            {activeServices.map((s, i) => (
-              <div key={s.id} className="flex items-center gap-3">
-                <span className="text-sm font-bold text-gray-400 dark:text-gray-500 w-4">{i + 1}</span>
-                <div className="flex-1">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-700 dark:text-gray-300">{s.name}</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{(s.price ?? 0).toLocaleString()} ₽</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 dark:bg-zinc-700 rounded-full">
-                    <div className="h-1.5 rounded-full bg-teal-400" style={{ width: `${100 - i * 15}%` }} />
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Популярные услуги</h3>
+          {popular.length === 0 ? (
+            <EmptyState title="Недостаточно данных" description="Нет завершённых записей по услугам за выбранный период." />
+          ) : (
+            <div className="space-y-3">
+              {popular.map((item, i) => (
+                <div key={item.service_id} className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-400 dark:text-gray-500 w-4">{i + 1}</span>
+                  <div className="flex-1">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {item.completed_count} · {item.percent}% · {(item.price ?? 0).toLocaleString()} ₽
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 dark:bg-zinc-700 rounded-full">
+                      <div className="h-1.5 rounded-full bg-teal-400" style={{ width: `${Math.max(item.percent, 3)}%` }} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         <Card className="p-5">

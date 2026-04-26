@@ -19,6 +19,7 @@ import {
   assertSlug,
 } from './validation.js';
 import { notifyNewAppointmentCreated } from './telegram.js';
+import { enqueueNotificationEventsForAppointment } from './notifications.js';
 
 const APPOINTMENT_REL_SELECT = `
   *,
@@ -235,7 +236,15 @@ export async function updateAppointmentStatus(id, status) {
       .select(sel)
       .single()
   );
-  return mapAppointmentRow(throwOnError(res));
+  const updated = mapAppointmentRow(throwOnError(res));
+  if (st === 'cancelled') {
+    try {
+      await enqueueNotificationEventsForAppointment('appointment_cancelled', updated);
+    } catch (error) {
+      console.warn('[notifications] Не удалось добавить событие appointment_cancelled:', error?.message || error);
+    }
+  }
+  return updated;
 }
 
 export async function updateAppointment(id, updates) {
@@ -378,6 +387,11 @@ export async function createAppointment(data) {
     supabase.from('appointments').insert(insertData).select(sel).single()
   );
   const created = mapAppointmentRow(throwOnError(res));
+  try {
+    await enqueueNotificationEventsForAppointment('appointment_created', created);
+  } catch (error) {
+    console.warn('[notifications] Не удалось добавить событие appointment_created:', error?.message || error);
+  }
   await notifyNewAppointmentCreated(created);
   return created;
 }
@@ -503,4 +517,63 @@ export async function getRevenueData() {
     revenue: agg[s.key].revenue,
     bookings: agg[s.key].bookings,
   }));
+}
+
+/** Популярность услуг по завершённым записям за период (для owner dashboard). */
+export async function getPopularServicesStats(params = {}) {
+  const bid = await getOwnerBusinessId();
+  const days = Math.min(assertPositiveInt(params?.days ?? 30, 'days'), 3650);
+  const limit = Math.min(assertPositiveInt(params?.limit ?? 5, 'limit'), 50);
+
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  const startDate = start.toISOString().slice(0, 10);
+
+  const rows = throwOnError(
+    await supabase
+      .from('appointments')
+      .select('service_id')
+      .eq('business_id', bid)
+      .eq('status', 'completed')
+      .gte('date', startDate)
+      .not('service_id', 'is', null)
+  );
+
+  if (!rows?.length) return [];
+
+  const countByServiceId = new Map();
+  for (const row of rows) {
+    const serviceId = Number(row?.service_id);
+    if (!Number.isFinite(serviceId) || serviceId <= 0) continue;
+    countByServiceId.set(serviceId, (countByServiceId.get(serviceId) ?? 0) + 1);
+  }
+  if (countByServiceId.size === 0) return [];
+
+  const serviceIds = [...countByServiceId.keys()];
+  const services = throwOnError(
+    await supabase
+      .from('services')
+      .select('id, name, price, active')
+      .eq('business_id', bid)
+      .in('id', serviceIds)
+  );
+
+  const totalCompleted = [...countByServiceId.values()].reduce((sum, count) => sum + count, 0);
+  const stats = (services ?? [])
+    .map((service) => {
+      const completedCount = countByServiceId.get(service.id) ?? 0;
+      return {
+        service_id: service.id,
+        name: service.name,
+        price: Number(service.price) || 0,
+        active: service.active !== false,
+        completed_count: completedCount,
+        percent: totalCompleted > 0 ? Math.round((completedCount / totalCompleted) * 100) : 0,
+      };
+    })
+    .filter((item) => item.completed_count > 0)
+    .sort((a, b) => b.completed_count - a.completed_count)
+    .slice(0, limit);
+
+  return stats;
 }

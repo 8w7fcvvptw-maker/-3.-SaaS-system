@@ -15,6 +15,7 @@ import {
   handleYokassaWebhook,
   verifyYokassaWebhookIp,
 } from "../backend/lib/yookassa.js";
+import { runNotificationEventScheduler } from "../backend/lib/notifications.js";
 import {
   initObservability,
   logBusinessEvent,
@@ -254,6 +255,43 @@ app.post(
 );
 
 app.use(express.json({ limit: "32kb" }));
+
+function canRunNotificationScheduler(req) {
+  const secret = process.env.NOTIFICATION_SCHEDULER_SECRET?.trim();
+  if (secret) {
+    return req.headers["x-notification-scheduler-secret"] === secret;
+  }
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+  return process.env.NOTIFICATION_SCHEDULER_ALLOW_UNSECURED_DEV === "1";
+}
+
+app.post("/api/notifications/scheduler/run", async (req, res) => {
+  try {
+    if (!canRunNotificationScheduler(req)) {
+      return res.status(403).json({
+        message: "Доступ запрещён для запуска планировщика уведомлений",
+        code: "forbidden",
+      });
+    }
+
+    const result = await runNotificationEventScheduler({
+      supabaseClient: supabaseAdmin,
+      lookbehindMinutes: req.body?.lookbehindMinutes,
+      maxTemplates: req.body?.maxTemplates,
+      maxAppointmentsPerTemplate: req.body?.maxAppointmentsPerTemplate,
+    });
+
+    return res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    if (e instanceof ApiError) {
+      return res.status(e.status).json({ message: e.message, code: e.code, field: e.field });
+    }
+    logError(e, { requestId: req.requestId, route: "/api/notifications/scheduler/run" });
+    return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
+  }
+});
 
 async function handleMonitoringSelfTest(req, res) {
   const shared =

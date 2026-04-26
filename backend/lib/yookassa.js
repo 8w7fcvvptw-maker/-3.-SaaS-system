@@ -5,9 +5,9 @@
  * 1. Вставить реальные YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY
  * 2. Включить PAYMENTS_ENABLED=true
  * 3. Настроить webhook URL в личном кабинете ЮKassa на https://<host>/api/payments/webhook
- * 4. Задать YOOKASSA_WEBHOOK_SECRET и включить проверку подписи (см. TODO ниже)
+ * 4. Для webhook оставить только строгую серверную валидацию; dev bypass включать
+ *    исключительно через YOOKASSA_WEBHOOK_ALLOW_UNVERIFIED_DEV=1
  */
-import crypto from 'node:crypto';
 import { ApiError } from './errors.js';
 import { PLAN_LIMITS } from './subscriptions.js';
 import { activateSubscriptionWithSupabase } from './subscriptions.js';
@@ -134,28 +134,73 @@ export async function createPayment(userId, plan, supabaseAdmin, returnUrl) {
   };
 }
 
+function isExplicitDevWebhookBypassEnabled() {
+  return process.env.YOOKASSA_WEBHOOK_ALLOW_UNVERIFIED_DEV === '1';
+}
+
+function sameAmount(left, right) {
+  const leftValue = String(left?.value ?? '').trim();
+  const rightValue = String(right?.value ?? '').trim();
+  const leftCurrency = String(left?.currency ?? '').trim();
+  const rightCurrency = String(right?.currency ?? '').trim();
+  if (!leftValue || !rightValue || !leftCurrency || !rightCurrency) return false;
+  return leftValue === rightValue && leftCurrency === rightCurrency;
+}
+
 /**
- * Проверка подписи webhook.
- * TODO(YooKassa): сверить с актуальной документацией (заголовок/алгоритм могут отличаться).
- * Сейчас: если задан YOKASSA_WEBHOOK_SECRET — HMAC-SHA256(hex) по сырому телу, сравнение с x-yookassa-signature.
- * Если секрет не задан: в production — отклоняем; в dev — пропускаем с предупреждением.
+ * По актуальной документации YooKassa для Basic Auth нет "подписи" webhook-запроса.
+ * Вместо этого валидируем подлинность уведомления сверкой объекта платежа через API YooKassa:
+ * - payment.id из webhook должен существовать в API;
+ * - статус и сумма/валюта в webhook должны совпадать с текущим payment object.
+ * В production bypass запрещён. В dev bypass возможен только при YOOKASSA_WEBHOOK_ALLOW_UNVERIFIED_DEV=1.
  */
-export function verifyYookassaWebhookSignature(req, rawBodyBuffer) {
-  const secret = process.env.YOKASSA_WEBHOOK_SECRET?.trim();
-  if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('[yookassa] YOKASSA_WEBHOOK_SECRET не задан — webhook отклонён (production).');
+export async function verifyYookassaWebhookSignature(req, rawBodyBuffer) {
+  if (!Buffer.isBuffer(rawBodyBuffer)) return false;
+
+  let eventBody = null;
+  try {
+    eventBody = JSON.parse(rawBodyBuffer.toString('utf-8'));
+  } catch {
+    return false;
+  }
+
+  const notificationPayment = eventBody?.object;
+  const paymentId = notificationPayment?.id;
+  if (!paymentId) return false;
+
+  const basicAuth = getBasicAuth();
+  if (!basicAuth) {
+    if (process.env.NODE_ENV === 'production' || !isExplicitDevWebhookBypassEnabled()) {
+      console.error(
+        '[yookassa] webhook verification failed: нет BasicAuth для сверки payment object; запрос отклонён.'
+      );
       return false;
     }
-    console.warn('[yookassa] TODO: задайте YOKASSA_WEBHOOK_SECRET; webhook без подписи пропущен (dev).');
+    console.warn(
+      '[yookassa] webhook verification bypassed in dev via YOOKASSA_WEBHOOK_ALLOW_UNVERIFIED_DEV=1'
+    );
     return true;
   }
 
-  const signature = req.headers['x-yookassa-signature'];
-  if (!signature || !Buffer.isBuffer(rawBodyBuffer)) return false;
+  try {
+    const response = await fetch(`${YOOKASSA_BASE_URL}/payments/${encodeURIComponent(paymentId)}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+      },
+    });
 
-  const digest = crypto.createHmac('sha256', secret).update(rawBodyBuffer).digest('hex');
-  return digest === signature;
+    if (!response.ok) return false;
+
+    const paymentFromApi = await response.json();
+    if (!paymentFromApi?.id || paymentFromApi.id !== paymentId) return false;
+    if (paymentFromApi.status !== notificationPayment?.status) return false;
+
+    return sameAmount(paymentFromApi.amount, notificationPayment?.amount);
+  } catch (error) {
+    console.error('[yookassa] webhook verification request failed:', error?.message || error);
+    return false;
+  }
 }
 
 export function verifyYokassaWebhookIp(remoteIp) {
@@ -188,8 +233,8 @@ export async function handleYokassaWebhook(req, ctx) {
     ? req.body
     : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}), 'utf-8');
 
-  if (!verifyYokassaWebhookSignature(req, rawBody)) {
-    throw new ApiError('Некорректная подпись webhook', { code: 'invalid_signature', status: 401 });
+  if (!(await verifyYookassaWebhookSignature(req, rawBody))) {
+    throw new ApiError('Не пройдена валидация webhook', { code: 'invalid_signature', status: 401 });
   }
 
   const eventBody = JSON.parse(rawBody.toString('utf-8'));
