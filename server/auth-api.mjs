@@ -214,7 +214,34 @@ async function getRequestUser(req) {
 
 async function getUserRole(userId) {
   const { data } = await supabaseAdmin.from("user_profiles").select("role").eq("id", userId).maybeSingle();
-  return data?.role ?? "client";
+  const role = String(data?.role ?? "client").toLowerCase();
+  if (role === "admin" || role === "business" || role === "client") return role;
+  if (role === "owner") return "business";
+  if (role === "customer") return "client";
+  return "client";
+}
+
+function normalizeSubscriptionStatus(rawStatus) {
+  const status = String(rawStatus ?? "").toLowerCase();
+  if (status === "active" || status === "trial" || status === "past_due" || status === "canceled") return status;
+  if (status === "cancelled") return "canceled";
+  return "inactive";
+}
+
+function hasEntitlement(status) {
+  const normalized = normalizeSubscriptionStatus(status);
+  return normalized === "active" || normalized === "trial";
+}
+
+async function getOwnerBusinessByUserId(userId) {
+  const { data } = await supabaseAdmin
+    .from("businesses")
+    .select("id")
+    .eq("user_id", userId)
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ? data : null;
 }
 
 async function getActiveSubscriptionByUserId(userId) {
@@ -222,13 +249,21 @@ async function getActiveSubscriptionByUserId(userId) {
     .from("subscriptions")
     .select("*")
     .eq("user_id", userId)
-    .eq("status", "active")
+    .in("status", ["active", "trial", "past_due", "canceled", "inactive"])
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!data) return null;
-  if (data.end_date && new Date(data.end_date) < new Date()) return null;
-  return data;
+    .limit(10);
+  if (!Array.isArray(data) || !data.length) return null;
+  const [latest] = [...data].sort((left, right) => {
+    const priority = ["active", "trial", "past_due", "canceled", "inactive"];
+    const leftRank = priority.indexOf(normalizeSubscriptionStatus(left?.status));
+    const rightRank = priority.indexOf(normalizeSubscriptionStatus(right?.status));
+    if (leftRank !== rightRank) return leftRank - rightRank;
+    return new Date(right?.created_at ?? 0).valueOf() - new Date(left?.created_at ?? 0).valueOf();
+  });
+  if (!latest) return null;
+  const expired = latest.end_date && new Date(latest.end_date) < new Date();
+  const status = expired && hasEntitlement(latest.status) ? "past_due" : normalizeSubscriptionStatus(latest.status);
+  return { ...latest, status };
 }
 
 app.post(
@@ -402,12 +437,32 @@ app.post("/api/auth/register", registerLimiter, async (req, res) => {
 app.get("/api/subscription/status", async (req, res) => {
   const user = await getRequestUser(req);
   if (!user) return res.status(401).json({ message: "Требуется авторизация", code: "auth_required" });
-  const role = await getUserRole(user.id);
-  const subscription = await getActiveSubscriptionByUserId(user.id);
+  const [role, business, subscription] = await Promise.all([
+    getUserRole(user.id),
+    getOwnerBusinessByUserId(user.id),
+    getActiveSubscriptionByUserId(user.id),
+  ]);
+  const isAdmin = role === "admin";
+  const isOwner = !isAdmin && (role === "business" || !!business?.id);
+  const userType = isAdmin ? "admin" : isOwner ? "owner" : "customer";
+  const hasOwnerEntitlement = hasEntitlement(subscription?.status);
   return res.json({
     role,
+    userType,
+    hasBusiness: !!business?.id,
+    businessId: business?.id ?? null,
+    subscriptionStatus: normalizeSubscriptionStatus(subscription?.status),
     subscription,
-    hasActiveSubscription: !!subscription,
+    hasOwnerEntitlement,
+    hasActiveSubscription: hasOwnerEntitlement,
+    access: {
+      isAdmin,
+      isOwner,
+      isCustomer: userType === "customer",
+      needsOnboarding: isOwner && !business?.id,
+      requiresPaywall: isOwner && !!business?.id && !hasOwnerEntitlement,
+      canAccessOwnerApp: isAdmin || (isOwner && !!business?.id && hasOwnerEntitlement),
+    },
   });
 });
 

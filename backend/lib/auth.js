@@ -15,6 +15,16 @@ function isNetworkAuthApiError(error) {
   return error instanceof ApiError && error.code === 'network_error';
 }
 
+function isRecoverableAuthApiError(error) {
+  if (!(error instanceof ApiError)) return false;
+  if (isNetworkAuthApiError(error)) return true;
+  return (
+    error.code === 'cors_forbidden' ||
+    error.code === 'proxy_misconfigured' ||
+    error.code === 'upstream_unreachable'
+  );
+}
+
 /**
  * URL для POST /api/auth/*:
  * — если задан VITE_SERVER_URL → прямой вызов Railway (нужен CORS / ALLOWED_ORIGINS);
@@ -26,6 +36,38 @@ function authApiUrl(path) {
     return `${normalizeBrowserApiBase(raw)}${path}`;
   }
   return path;
+}
+
+function sleepMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const isBrowser =
+  typeof globalThis !== 'undefined' &&
+  typeof globalThis.window !== 'undefined' &&
+  typeof globalThis.document !== 'undefined';
+
+/**
+ * Сразу после signIn иногда getSession() ещё не отдаёт user.id (гонка localStorage + первые запросы),
+ * а getUser() уже видит сессию. Без мягкого ожидания getBusiness() мог бросать 401 → signOut (AuthApiBridge).
+ */
+export async function waitForSessionUserId(maxAttempts = isBrowser ? 20 : 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+    if (sessionErr) {
+      throw new ApiError(sessionErr.message || 'Ошибка сессии', { code: 'auth_required', status: 401 });
+    }
+    const id = sessionData.session?.user?.id;
+    if (id) return id;
+
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (!userErr && userData.user?.id) return userData.user.id;
+
+    if (attempt < maxAttempts - 1) {
+      await sleepMs(isBrowser ? 25 : 0);
+    }
+  }
+  return null;
 }
 
 /** @param {string} path `/api/auth/login` или `/api/auth/register` */
@@ -101,6 +143,16 @@ export async function getSession() {
   if (error) {
     throw new ApiError(error.message || 'Ошибка сессии', { code: 'auth_required', status: 401 });
   }
+  if (data.session && !data.session.user?.id) {
+    const id = await waitForSessionUserId(2);
+    if (id) {
+      const { data: next, error: nextErr } = await supabase.auth.getSession();
+      if (nextErr) {
+        throw new ApiError(nextErr.message || 'Ошибка сессии', { code: 'auth_required', status: 401 });
+      }
+      return next.session;
+    }
+  }
   return data.session;
 }
 
@@ -111,8 +163,8 @@ export async function signInWithEmail(email, password) {
     try {
       return await postAuth('/api/auth/login', e, p);
     } catch (error) {
-      // Fallback keeps login available when /api proxy or upstream auth API is temporarily unreachable.
-      if (!isNetworkAuthApiError(error)) throw error;
+      // Fallback keeps login available when /api proxy or upstream auth API is unreachable/misconfigured.
+      if (!isRecoverableAuthApiError(error)) throw error;
     }
   }
   const { data, error } = await supabase.auth.signInWithPassword({ email: e, password: p });
@@ -127,8 +179,8 @@ export async function signUpWithEmail(email, password) {
     try {
       return await postAuth('/api/auth/register', e, p);
     } catch (error) {
-      // Fallback keeps registration available when /api proxy or upstream auth API is temporarily unreachable.
-      if (!isNetworkAuthApiError(error)) throw error;
+      // Fallback keeps registration available when /api proxy or upstream auth API is unreachable/misconfigured.
+      if (!isRecoverableAuthApiError(error)) throw error;
     }
   }
   const { data, error } = await supabase.auth.signUp({ email: e, password: p });
@@ -176,14 +228,25 @@ export async function signInTestUser() {
 
 /** Обёртка для вызовов только из кабинета */
 export async function requireSession() {
-  const session = await getSession();
-  if (!session?.user?.id) {
+  const id = await waitForSessionUserId();
+  if (!id) {
     throw new ApiError('Требуется войти в аккаунт', { code: 'auth_required', status: 401 });
   }
-  return session;
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    throw new ApiError(error.message || 'Ошибка сессии', { code: 'auth_required', status: 401 });
+  }
+  if (!data.session?.user?.id) {
+    throw new ApiError('Требуется войти в аккаунт', { code: 'auth_required', status: 401 });
+  }
+  return data.session;
 }
 
 export async function requireUser() {
+  const id = await waitForSessionUserId();
+  if (!id) {
+    throw new ApiError('Требуется войти в аккаунт', { code: 'auth_required', status: 401 });
+  }
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) {
     throw new ApiError('Требуется войти в аккаунт', { code: 'auth_required', status: 401 });

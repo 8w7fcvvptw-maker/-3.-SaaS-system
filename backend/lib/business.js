@@ -1,8 +1,8 @@
 import { supabase } from './supabase.js';
 import { throwOnError } from './helpers.js';
 import { ApiError } from './errors.js';
-import { requireSession } from './auth.js';
-import { getUserRole, requireActiveSubscription } from './subscriptions.js';
+import { requireSession, waitForSessionUserId } from './auth.js';
+import { requireActiveSubscription } from './subscriptions.js';
 import {
   assertNonEmptyString,
   assertSlug,
@@ -45,8 +45,7 @@ export async function getBusiness(slug) {
   }
 
   await requireSession();
-  const { data: { session } } = await supabase.auth.getSession();
-  const uid = session?.user?.id;
+  const uid = await waitForSessionUserId();
   if (!uid) throw new ApiError('Требуется войти в аккаунт', { code: 'auth_required', status: 401 });
 
   if (cachedOwnerBusinessUserId === uid && cachedOwnerBusinessId != null) {
@@ -72,12 +71,9 @@ export async function getBusiness(slug) {
 
 export async function updateBusiness(id, updates) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
+  await requireActiveSubscription(session.user.id);
   const bid = assertId(Number(id), 'id');
-  const ownerBid = await getOwnerBusinessId();
+  const ownerBid = await getOwnerBusinessId({ requireSubscription: false });
   if (bid !== ownerBid) {
     throw new ApiError('Нельзя изменять чужой салон', { code: 'forbidden', status: 403 });
   }
@@ -106,10 +102,6 @@ export async function updateBusiness(id, updates) {
 export async function createBusiness(payload) {
   const session = await requireSession();
   const uid = session.user.id;
-  const role = await getUserRole(uid);
-  if (role === 'business') {
-    await requireActiveSubscription(uid);
-  }
 
   const existing = await supabase.from('businesses').select('id').eq('user_id', uid).limit(1).maybeSingle();
   if (existing.data?.id) {
@@ -153,7 +145,14 @@ export async function createBusiness(payload) {
   return created;
 }
 
-export async function getOwnerBusinessId() {
+export async function getOwnerBusinessId(options = {}) {
+  const { requireSubscription = true } = options;
+  if (requireSubscription) {
+    const userId = await waitForSessionUserId();
+    if (userId) {
+      await requireActiveSubscription(userId);
+    }
+  }
   const biz = await getBusiness();
   if (!biz?.id) {
     throw new ApiError('Сначала создайте профиль салона', { code: 'no_business', status: 400 });

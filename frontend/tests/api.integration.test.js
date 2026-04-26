@@ -36,7 +36,9 @@ beforeAll(async () => {
       businessId = biz.id;
       hasBusiness = true;
     }
-  } catch (_) {}
+  } catch {
+    // ignore setup errors in integration environment
+  }
 });
 
 describe('1. Подключение к Supabase', () => {
@@ -132,10 +134,6 @@ describe('3. Услуги (CRUD)', () => {
 });
 
 describe('4. Записи (Appointments)', () => {
-  let testClientId;
-  let testServiceId;
-  let testStaffId;
-
   beforeAll(async () => {
     if (!hasBusiness) return;
     const [clients, services, staff] = await Promise.all([
@@ -143,24 +141,18 @@ describe('4. Записи (Appointments)', () => {
       api.getServices(),
       api.getStaff(),
     ]);
-    if (clients?.length) testClientId = clients[0].id;
-    if (services?.length) testServiceId = services[0].id;
-    if (staff?.length) testStaffId = staff[0].id;
-
     if (!services?.length) {
       const svcData = { name: 'Тест для записи', description: 'Описание', duration: 30, price: 500, category: 'Тест', color: '#6366f1', active: true };
       if (hasBusiness) svcData.business_id = businessId;
       const s = await api.createService(svcData);
-      testServiceId = s.id;
       createdServiceId = s.id;
     }
     if (!staff?.length && hasBusiness) {
       const staffData = { name: 'Тест Мастер', role: 'Барбер', business_id: businessId };
-      const st = await api.createStaff(staffData);
-      testStaffId = st.id;
+      await api.createStaff(staffData);
     }
     if (!clients?.length && hasBusiness) {
-      const c = await api.createClient({
+      await api.createClient({
         name: 'Клиент для записи',
         phone: '+7 (999) 111-11-11',
         total_visits: 0,
@@ -168,13 +160,16 @@ describe('4. Записи (Appointments)', () => {
         tags: [],
         business_id: businessId,
       });
-      testClientId = c.id;
     }
   });
 
   afterAll(async () => {
     if (createdServiceId) {
-      try { await api.deleteService(createdServiceId); } catch (_) {}
+      try {
+        await api.deleteService(createdServiceId);
+      } catch {
+        // ignore cleanup errors in integration environment
+      }
     }
   });
 

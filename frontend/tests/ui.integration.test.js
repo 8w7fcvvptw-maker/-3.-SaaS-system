@@ -13,12 +13,18 @@ beforeAll(async () => {
   try {
     const biz = await api.getBusiness();
     if (biz?.id) businessId = biz.id;
-  } catch (_) {}
+  } catch {
+    // ignore setup errors in integration environment
+  }
 });
 
 afterAll(async () => {
   if (testClientId) {
-    try { await api.deleteClient(testClientId); } catch (_) {}
+    try {
+      await api.deleteClient(testClientId);
+    } catch {
+      // ignore cleanup errors in integration environment
+    }
   }
 });
 

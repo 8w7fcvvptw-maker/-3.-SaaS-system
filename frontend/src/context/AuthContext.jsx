@@ -81,10 +81,13 @@ export function AuthProvider({ children }) {
       syncAuth,
       userProfile,
       role: userProfile?.role ?? null,
+      userType: userProfile?.userType ?? null,
+      access: userProfile?.access ?? null,
+      hasBusiness: userProfile?.hasBusiness ?? false,
       hasActiveSubscription: userProfile?.hasActiveSubscription ?? false,
       isAdmin: userProfile?.role === 'admin',
-      isBusiness: userProfile?.role === 'business',
-      isClient: userProfile?.role === 'client',
+      isBusiness: userProfile?.userType === 'owner',
+      isClient: userProfile?.userType === 'customer',
     }),
     [user, loading, syncAuth, userProfile]
   );
@@ -92,6 +95,7 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
