@@ -27,6 +27,7 @@ import {
   createAppointment, updateAppointment, updateAppointmentStatus, deleteAppointment,
   getRevenueData, getPopularServicesStats,
   getNotificationTemplates, createNotificationTemplate, updateNotificationTemplate, deleteNotificationTemplate, getNotificationEvents,
+  getBusinessBookingSettings, updateBusinessBookingSettings,
 } from "../../lib/api";
 
 /** Статусы, в которых разрешено удаление записи (совпадает с backend). */
@@ -1934,21 +1935,29 @@ export function AnalyticsPage() {
 // ── 2.13 Настройки (/settings) ────────────────────────────────
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile");
-  const [notifications, setNotifications] = useState(() => {
-    try {
-      const s = localStorage.getItem("settings_notifications");
-      return s ? { ...{ email: true, sms: true, reminderHours: 24 }, ...JSON.parse(s) } : { email: true, sms: true, reminderHours: 24 };
-    } catch { return { email: true, sms: true, reminderHours: 24 }; }
+  const [notifications, setNotifications] = useState({
+    email: true,
+    sms: true,
+    reminderHours: 24,
+    smsAddonEnabled: false,
+    advancedNotificationsEnabled: false,
   });
-  const [booking, setBooking] = useState(() => {
-    try {
-      const s = localStorage.getItem("settings_booking");
-      return s ? { ...{ onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 }, ...JSON.parse(s) } : { onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 };
-    } catch { return { onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 }; }
+  const [booking, setBooking] = useState({
+    onlineBooking: true,
+    bufferMinutes: 15,
+    cancellationHours: 24,
+    depositEnabled: false,
+    depositAmount: 0,
+    selfServiceLinksEnabled: false,
   });
   const { theme, setTheme } = useTheme();
 
   const { data: bizData, loading, error } = useAsync(() => getBusiness());
+  const {
+    data: bookingSettingsData,
+    loading: bookingSettingsLoading,
+    error: bookingSettingsError,
+  } = useAsync(() => getBusinessBookingSettings());
   const [biz, setBiz] = useState(null);
   const [saving, setSaving] = useState(false);
   /** Сообщение после сохранения профиля (видно в форме, без alert) */
@@ -1970,6 +1979,25 @@ export function SettingsPage() {
       clearTimer(localSettingsTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!bookingSettingsData) return;
+    setBooking({
+      onlineBooking: bookingSettingsData.onlineBookingEnabled !== false,
+      bufferMinutes: Number(bookingSettingsData.bufferMinutes ?? 15) || 15,
+      cancellationHours: Number(bookingSettingsData.cancellationHours ?? 24) || 24,
+      depositEnabled: bookingSettingsData.depositEnabled === true,
+      depositAmount: Number(bookingSettingsData.depositAmount ?? 0) || 0,
+      selfServiceLinksEnabled: bookingSettingsData.selfServiceLinksEnabled === true,
+    });
+    setNotifications({
+      email: bookingSettingsData.notificationsEmailEnabled !== false,
+      sms: bookingSettingsData.notificationsSmsEnabled !== false,
+      reminderHours: Number(bookingSettingsData.reminderHours ?? 24) || 24,
+      smsAddonEnabled: bookingSettingsData.smsAddonEnabled === true,
+      advancedNotificationsEnabled: bookingSettingsData.advancedNotificationsEnabled === true,
+    });
+  }, [bookingSettingsData]);
 
   if (bizData && !biz) setBiz({ ...bizData });
 
@@ -2017,12 +2045,32 @@ export function SettingsPage() {
     }, 5000);
   };
 
-  const handleSaveSettings = (key) => {
+  const handleSaveSettings = async (key) => {
+    setSaving(true);
     try {
-      localStorage.setItem(`settings_${key}`, JSON.stringify(key === "booking" ? booking : notifications));
-      showLocalSaved("Настройки сохранены в этом браузере.", "ok");
-    } catch {
-      showLocalSaved("Не удалось записать в браузер — проверьте доступ к хранилищу.", "err");
+      if (key === "booking") {
+        await updateBusinessBookingSettings({
+          onlineBookingEnabled: booking.onlineBooking,
+          bufferMinutes: Number(booking.bufferMinutes) || 0,
+          cancellationHours: Number(booking.cancellationHours) || 0,
+          depositEnabled: booking.depositEnabled,
+          depositAmount: Number(booking.depositAmount) || 0,
+          selfServiceLinksEnabled: booking.selfServiceLinksEnabled,
+        });
+      } else {
+        await updateBusinessBookingSettings({
+          notificationsEmailEnabled: notifications.email,
+          notificationsSmsEnabled: notifications.sms,
+          reminderHours: Number(notifications.reminderHours) || 0,
+          smsAddonEnabled: notifications.smsAddonEnabled,
+          advancedNotificationsEnabled: notifications.advancedNotificationsEnabled,
+        });
+      }
+      showLocalSaved("Настройки сохранены в базе данных.", "ok");
+    } catch (e) {
+      showLocalSaved(e?.message ?? "Не удалось сохранить настройки.", "err");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -2047,6 +2095,12 @@ export function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {bookingSettingsError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+          Не удалось загрузить настройки записи: {bookingSettingsError.message}
+        </div>
+      )}
 
       {activeTab === "profile" && (
         loading ? <LoadingState /> :
@@ -2114,6 +2168,9 @@ export function SettingsPage() {
 
       {activeTab === "booking" && (
         <Card className="p-6 max-w-lg">
+          {bookingSettingsLoading ? (
+            <LoadingState />
+          ) : (
           <div className="space-y-5">
             {localSettingsFeedback && (
               <div
@@ -2142,21 +2199,55 @@ export function SettingsPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Буфер между записями (мин)</label>
-              <input type="number" value={booking.bufferMinutes} onChange={e => setBooking(p => ({ ...p, bufferMinutes: +e.target.value }))}
+              <input type="number" min={0} max={180} value={booking.bufferMinutes} onChange={e => setBooking(p => ({ ...p, bufferMinutes: +e.target.value }))}
                 className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Политика отмены (часов до)</label>
-              <input type="number" value={booking.cancellationHours} onChange={e => setBooking(p => ({ ...p, cancellationHours: +e.target.value }))}
+              <input type="number" min={0} max={720} value={booking.cancellationHours} onChange={e => setBooking(p => ({ ...p, cancellationHours: +e.target.value }))}
                 className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70" />
             </div>
-            <Button onClick={() => handleSaveSettings("booking")}>Сохранить</Button>
+            <div className="pt-2 border-t border-gray-100 dark:border-zinc-700">
+              <div className="font-medium text-gray-900 dark:text-white mb-2">Prepaid booking (основа монетизации)</div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-gray-500 dark:text-gray-400">Включить депозит при онлайн-записи</div>
+                <button onClick={() => setBooking(p => ({ ...p, depositEnabled: !p.depositEnabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${booking.depositEnabled ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${booking.depositEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Сумма депозита (₽)</label>
+              <input
+                type="number"
+                min={0}
+                step="100"
+                value={booking.depositAmount}
+                disabled={!booking.depositEnabled}
+                onChange={e => setBooking(p => ({ ...p, depositAmount: +e.target.value }))}
+                className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 disabled:opacity-60"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium text-gray-900 dark:text-white">Self-service ссылки</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">Подготовка к ссылкам на перенос и отмену записи</div>
+              </div>
+              <button onClick={() => setBooking(p => ({ ...p, selfServiceLinksEnabled: !p.selfServiceLinksEnabled }))}
+                className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${booking.selfServiceLinksEnabled ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${booking.selfServiceLinksEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+            <Button onClick={() => handleSaveSettings("booking")} disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
           </div>
+          )}
         </Card>
       )}
 
       {activeTab === "notifications" && (
         <Card className="p-6 max-w-lg">
+          {bookingSettingsLoading ? (
+            <LoadingState />
+          ) : (
           <div className="space-y-5">
             {localSettingsFeedback && (
               <div
@@ -2184,11 +2275,34 @@ export function SettingsPage() {
             ))}
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Напоминание за (часов)</label>
-              <input type="number" value={notifications.reminderHours} onChange={e => setNotifications(p => ({ ...p, reminderHours: +e.target.value }))}
+              <input type="number" min={0} max={720} value={notifications.reminderHours} onChange={e => setNotifications(p => ({ ...p, reminderHours: +e.target.value }))}
                 className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70" />
             </div>
-            <Button onClick={() => handleSaveSettings("notifications")}>Сохранить</Button>
+            <div className="pt-2 border-t border-gray-100 dark:border-zinc-700 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">SMS add-on</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Платная функция: реальная отправка SMS</div>
+                </div>
+                <button onClick={() => setNotifications(p => ({ ...p, smsAddonEnabled: !p.smsAddonEnabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${notifications.smsAddonEnabled ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${notifications.smsAddonEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">Advanced notifications</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Основа для умных сценариев и A/B-уведомлений</div>
+                </div>
+                <button onClick={() => setNotifications(p => ({ ...p, advancedNotificationsEnabled: !p.advancedNotificationsEnabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${notifications.advancedNotificationsEnabled ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${notifications.advancedNotificationsEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+            </div>
+            <Button onClick={() => handleSaveSettings("notifications")} disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
           </div>
+          )}
         </Card>
       )}
 

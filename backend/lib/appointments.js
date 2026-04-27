@@ -281,7 +281,18 @@ export async function updateAppointment(id, updates) {
   const res = await withRelFallback((sel) =>
     supabase.from('appointments').update(safe).eq('id', id).eq('business_id', bid).select(sel).single()
   );
-  return mapAppointmentRow(throwOnError(res));
+  try {
+    return mapAppointmentRow(throwOnError(res));
+  } catch (error) {
+    const msg = String(error?.message ?? '');
+    if (msg.includes('appointment_conflict')) {
+      throw new ApiError('Слот занят с учетом буфера между записями.', {
+        code: 'booking_conflict',
+        status: 409,
+      });
+    }
+    throw error;
+  }
 }
 
 const APPOINTMENT_INSERT_COLS = [
@@ -377,7 +388,19 @@ export async function createAppointment(data) {
   const res = await withRelFallback((sel) =>
     supabase.from('appointments').insert(insertData).select(sel).single()
   );
-  const created = mapAppointmentRow(throwOnError(res));
+  let created;
+  try {
+    created = mapAppointmentRow(throwOnError(res));
+  } catch (error) {
+    const msg = String(error?.message ?? '');
+    if (msg.includes('appointment_conflict')) {
+      throw new ApiError('Слот занят с учетом буфера между записями.', {
+        code: 'booking_conflict',
+        status: 409,
+      });
+    }
+    throw error;
+  }
   try {
     await enqueueNotificationEventsForAppointment('appointment_created', created);
   } catch (error) {
@@ -420,7 +443,21 @@ export async function createPublicAppointment(payload) {
   });
 
   if (error) {
-    throw new ApiError(error.message || 'Не удалось создать запись', {
+    const msg = String(error.message || 'Не удалось создать запись');
+    const lower = msg.toLowerCase();
+    if (lower.includes('booking_disabled')) {
+      throw new ApiError('Онлайн-запись для этого салона отключена.', {
+        code: 'booking_disabled',
+        status: 403,
+      });
+    }
+    if (lower.includes('booking_conflict') || lower.includes('appointment_conflict')) {
+      throw new ApiError('Выбранный слот уже занят. Выберите другое время.', {
+        code: 'booking_conflict',
+        status: 409,
+      });
+    }
+    throw new ApiError(msg, {
       code: 'validation_error',
       status: 400,
     });
