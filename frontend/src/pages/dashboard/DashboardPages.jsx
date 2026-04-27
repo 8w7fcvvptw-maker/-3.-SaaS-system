@@ -15,6 +15,7 @@ import { useAsync } from "../../hooks/useAsync";
 import { useMinWidthMd } from "../../hooks/useMinWidthMd.js";
 import { normalizePhone } from "../../lib/phoneUtils";
 import { SAAS_BUSINESS_PROFILE_CHANGED } from "../../lib/saasEvents.js";
+import { validatePasswordRepeat, validateRegisterPassword } from "../../lib/authFormValidation.js";
 import { useSubscription } from "../../hooks/useSubscription.js";
 import { PLAN_LIMITS, redirectToPayment } from "../../lib/subscription.js";
 import {
@@ -28,6 +29,7 @@ import {
   getRevenueData, getPopularServicesStats,
   getNotificationTemplates, createNotificationTemplate, updateNotificationTemplate, deleteNotificationTemplate, getNotificationEvents,
   getBusinessBookingSettings, updateBusinessBookingSettings,
+  changePassword,
 } from "../../lib/api";
 
 /** Статусы, в которых разрешено удаление записи (совпадает с backend). */
@@ -1965,6 +1967,10 @@ export function SettingsPage() {
   const profileFeedbackTimer = useRef(null);
   const [localSettingsFeedback, setLocalSettingsFeedback] = useState(null);
   const localSettingsTimer = useRef(null);
+  const [passwordForm, setPasswordForm] = useState({ nextPassword: "", nextPassword2: "" });
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordPending, setPasswordPending] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState(null);
 
   const clearTimer = (ref) => {
     if (ref.current) {
@@ -2074,6 +2080,31 @@ export function SettingsPage() {
     }
   };
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordFeedback(null);
+    const nextErrors = {
+      nextPassword: validateRegisterPassword(passwordForm.nextPassword),
+      nextPassword2: validatePasswordRepeat(passwordForm.nextPassword, passwordForm.nextPassword2),
+    };
+    setPasswordErrors(nextErrors);
+    if (nextErrors.nextPassword || nextErrors.nextPassword2) return;
+
+    setPasswordPending(true);
+    try {
+      await changePassword(passwordForm.nextPassword);
+      setPasswordForm({ nextPassword: "", nextPassword2: "" });
+      setPasswordFeedback({ type: "ok", text: "Пароль успешно изменен." });
+    } catch (err) {
+      setPasswordFeedback({
+        type: "err",
+        text: err?.message ?? "Не удалось изменить пароль. Попробуйте позже.",
+      });
+    } finally {
+      setPasswordPending(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader title="Настройки" />
@@ -2106,63 +2137,126 @@ export function SettingsPage() {
         loading ? <LoadingState /> :
         error   ? <ErrorState message={error.message} /> :
         biz ? (
-          <Card className="p-6 max-w-lg">
-            <div className="space-y-4">
-              {[["Название бизнеса", "name"], ["Адрес", "address"], ["Телефон", "phone"], ["Email", "email"]].map(([label, field]) => (
-                <div key={field}>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">{label}</label>
-                  <input
-                    value={biz[field] ?? ""}
+          <div className="space-y-4 max-w-lg">
+            <Card className="p-6">
+              <div className="space-y-4">
+                {[["Название бизнеса", "name"], ["Адрес", "address"], ["Телефон", "phone"], ["Email", "email"]].map(([label, field]) => (
+                  <div key={field}>
+                    <label className="text-sm font-medium text-gray-700 block mb-1">{label}</label>
+                    <input
+                      value={biz[field] ?? ""}
+                      onChange={(e) => {
+                        if (profileFeedback?.type === "ok") {
+                          clearTimer(profileFeedbackTimer);
+                          setProfileFeedback(null);
+                        }
+                        setBiz((p) => ({
+                          ...p,
+                          [field]: field === "phone" ? normalizePhone(e.target.value) : e.target.value,
+                        }));
+                      }}
+                      className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
+                    />
+                  </div>
+                ))}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Описание</label>
+                  <textarea
+                    value={biz.description ?? ""}
                     onChange={(e) => {
                       if (profileFeedback?.type === "ok") {
                         clearTimer(profileFeedbackTimer);
                         setProfileFeedback(null);
                       }
-                      setBiz((p) => ({
-                        ...p,
-                        [field]: field === "phone" ? normalizePhone(e.target.value) : e.target.value,
-                      }));
+                      setBiz((p) => ({ ...p, description: e.target.value }));
+                    }}
+                    rows={3}
+                    className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 resize-none"
+                  />
+                </div>
+                {profileFeedback && (
+                  <div
+                    role="status"
+                    className={`rounded-lg px-3 py-2.5 text-sm ${
+                      profileFeedback.type === "ok"
+                        ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/50"
+                        : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-900/50"
+                    }`}
+                  >
+                    {profileFeedback.type === "ok" ? (
+                      <span className="font-medium">✓ {profileFeedback.text}</span>
+                    ) : (
+                      <span>{profileFeedback.text}</span>
+                    )}
+                  </div>
+                )}
+                <Button onClick={handleSaveBiz} disabled={saving}>
+                  {saving ? "Сохранение…" : "Сохранить изменения"}
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Смена пароля</h3>
+              <form className="space-y-4" onSubmit={handleChangePassword} noValidate>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Новый пароль</label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={passwordForm.nextPassword}
+                    onChange={(e) => {
+                      setPasswordForm((p) => ({ ...p, nextPassword: e.target.value }));
+                      if (passwordErrors.nextPassword) {
+                        setPasswordErrors((p) => ({ ...p, nextPassword: null }));
+                      }
                     }}
                     className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
                   />
-                </div>
-              ))}
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Описание</label>
-                <textarea
-                  value={biz.description ?? ""}
-                  onChange={(e) => {
-                    if (profileFeedback?.type === "ok") {
-                      clearTimer(profileFeedbackTimer);
-                      setProfileFeedback(null);
-                    }
-                    setBiz((p) => ({ ...p, description: e.target.value }));
-                  }}
-                  rows={3}
-                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 resize-none"
-                />
-              </div>
-              {profileFeedback && (
-                <div
-                  role="status"
-                  className={`rounded-lg px-3 py-2.5 text-sm ${
-                    profileFeedback.type === "ok"
-                      ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/50"
-                      : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-900/50"
-                  }`}
-                >
-                  {profileFeedback.type === "ok" ? (
-                    <span className="font-medium">✓ {profileFeedback.text}</span>
-                  ) : (
-                    <span>{profileFeedback.text}</span>
+                  {passwordErrors.nextPassword && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">{passwordErrors.nextPassword}</p>
                   )}
                 </div>
-              )}
-              <Button onClick={handleSaveBiz} disabled={saving}>
-                {saving ? "Сохранение…" : "Сохранить изменения"}
-              </Button>
-            </div>
-          </Card>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Повтор нового пароля</label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={passwordForm.nextPassword2}
+                    onChange={(e) => {
+                      setPasswordForm((p) => ({ ...p, nextPassword2: e.target.value }));
+                      if (passwordErrors.nextPassword2) {
+                        setPasswordErrors((p) => ({ ...p, nextPassword2: null }));
+                      }
+                    }}
+                    className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
+                  />
+                  {passwordErrors.nextPassword2 && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">{passwordErrors.nextPassword2}</p>
+                  )}
+                </div>
+                {passwordFeedback && (
+                  <div
+                    role="status"
+                    className={`rounded-lg px-3 py-2.5 text-sm ${
+                      passwordFeedback.type === "ok"
+                        ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/50"
+                        : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-900/50"
+                    }`}
+                  >
+                    {passwordFeedback.type === "ok" ? (
+                      <span className="font-medium">✓ {passwordFeedback.text}</span>
+                    ) : (
+                      <span>{passwordFeedback.text}</span>
+                    )}
+                  </div>
+                )}
+                <Button type="submit" disabled={passwordPending}>
+                  {passwordPending ? "Сохранение…" : "Обновить пароль"}
+                </Button>
+              </form>
+            </Card>
+          </div>
         ) : null
       )}
 
