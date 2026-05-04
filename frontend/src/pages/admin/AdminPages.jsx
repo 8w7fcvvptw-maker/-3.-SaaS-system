@@ -1,304 +1,312 @@
-// ============================================
-// ADMIN SAAS PANEL
-// ============================================
-
 import { useState } from "react";
-import { Card, Badge, PageHeader, LoadingState, ErrorState } from "../../components/ui";
+import { Badge, Card, ErrorState, LoadingState, PageHeader } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
-import { getAdminBusinesses, getAdminStats, getPlans, updatePlan } from "../../lib/api";
+import {
+  getAdminBusinesses,
+  getAdminPayments,
+  getAdminStats,
+  getAdminSubscriptions,
+  getPlans,
+} from "../../lib/api";
 
-function PlanBadge({ plan }) {
-  const colors = { Free: "gray", Pro: "teal", Enterprise: "purple" };
-  return <Badge color={colors[plan] || "gray"}>{plan}</Badge>;
+function formatMoney(value) {
+  return `${Number(value ?? 0).toLocaleString("ru-RU")} ₽`;
 }
 
-function StatusDot({ status }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-sm ${status === "active" ? "text-emerald-400" : "text-gray-500"}`}>
-      <span className={`w-2 h-2 rounded-full ${status === "active" ? "bg-emerald-400" : "bg-gray-400"}`} />
-      {status === "active" ? "Активно" : "Неактивно"}
-    </span>
-  );
+function formatDateTime(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.valueOf())) return "—";
+  return d.toLocaleString("ru-RU");
+}
+
+function percent(value) {
+  return `${Number(value ?? 0).toFixed(1)}%`;
+}
+
+function PlanBadge({ planKey, planName }) {
+  const colors = { basic: "gray", pro: "teal", unlimited: "purple" };
+  return <Badge color={colors[planKey] || "gray"}>{planName ?? planKey ?? "—"}</Badge>;
+}
+
+function SubscriptionStatusBadge({ status }) {
+  const map = {
+    active: { color: "green", text: "active" },
+    trial: { color: "teal", text: "trial" },
+    past_due: { color: "yellow", text: "past_due" },
+    canceled: { color: "red", text: "canceled" },
+    inactive: { color: "gray", text: "inactive" },
+  };
+  const cfg = map[status] ?? map.inactive;
+  return <Badge color={cfg.color}>{cfg.text}</Badge>;
 }
 
 export function AdminDashboard() {
-  const { data: stats, loading, error } = useAsync(() => getAdminStats());
-  if (loading) return <LoadingState />;
+  const { data: stats, loading: statsLoading, error: statsError } = useAsync(() => getAdminStats());
+  const { data: payments, loading: paymentsLoading, error: paymentsError } = useAsync(() => getAdminPayments());
+  const { data: subscriptions, loading: subsLoading, error: subsError } = useAsync(() => getAdminSubscriptions());
+
+  if (statsLoading || paymentsLoading || subsLoading) return <LoadingState />;
+  const error = statsError ?? paymentsError ?? subsError;
   if (error) return <ErrorState message={error.message} />;
+
+  const recentPayments = (payments ?? []).slice(0, 8);
+  const recentSubscriptions = (subscriptions ?? []).slice(0, 8);
 
   return (
     <div>
-      <PageHeader title="Дашборд SaaS" subtitle="Статистика платформы" />
+      <PageHeader title="Платформенная аналитика" subtitle="SaaS admin + billing overview" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4 mb-6">
-        {[
-          ["Всего пользователей", stats?.totalUsers ?? 0, "text-gray-500", "Платформа"],
-          ["Бизнес-аккаунтов", stats?.totalBusinessUsers ?? 0, "text-gray-500", "Owner-контур"],
-          ["Активных подписок", stats?.activeSubscriptions ?? 0, "text-teal-400", "trial + active"],
-          ["Выручка", `${Number(stats?.totalRevenue ?? 0).toLocaleString()} ₽`, "text-gray-500", "По оплатам"],
-        ].map(([label, value, trendColor, trendText]) => (
-          <div key={label} className="bg-gray-800 border border-gray-700 rounded-xl p-5">
-            <div className="text-gray-400 text-sm mb-2">{label}</div>
-            <div className="text-2xl font-bold text-white">{value}</div>
-            <div className={`text-xs mt-1 ${trendColor}`}>{trendText}</div>
-          </div>
-        ))}
+        <Card className="p-5 bg-gray-800 border-gray-700">
+          <div className="text-gray-400 text-sm">Всего бизнесов</div>
+          <div className="text-2xl font-bold text-white mt-1">{stats?.totalBusinessUsers ?? 0}</div>
+        </Card>
+        <Card className="p-5 bg-gray-800 border-gray-700">
+          <div className="text-gray-400 text-sm">Платящих бизнесов</div>
+          <div className="text-2xl font-bold text-white mt-1">{stats?.paidBusinesses ?? 0}</div>
+          <div className="text-xs text-gray-500 mt-1">Trial: {stats?.trialBusinesses ?? 0}</div>
+        </Card>
+        <Card className="p-5 bg-gray-800 border-gray-700">
+          <div className="text-gray-400 text-sm">Выручка платформы</div>
+          <div className="text-2xl font-bold text-white mt-1">{formatMoney(stats?.totalRevenue)}</div>
+          <div className="text-xs text-gray-500 mt-1">MRR: {formatMoney(stats?.mrr)}</div>
+        </Card>
+        <Card className="p-5 bg-gray-800 border-gray-700">
+          <div className="text-gray-400 text-sm">Trial → Paid</div>
+          <div className="text-2xl font-bold text-white mt-1">{percent(stats?.trialToPaidRate)}</div>
+          <div className="text-xs text-gray-500 mt-1">из текущей базы</div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+        <Card className="p-4 bg-gray-800 border-gray-700">
+          <div className="text-xs text-gray-400 uppercase mb-1">Subscriptions</div>
+          <div className="text-sm text-gray-300">active: {stats?.activeSubscriptions ?? 0}</div>
+          <div className="text-sm text-gray-300">trial: {stats?.trialBusinesses ?? 0}</div>
+          <div className="text-sm text-gray-300">past_due: {stats?.pastDueSubscriptions ?? 0}</div>
+          <div className="text-sm text-gray-300">canceled: {stats?.canceledSubscriptions ?? 0}</div>
+          <div className="text-sm text-gray-300">inactive: {stats?.inactiveSubscriptions ?? 0}</div>
+        </Card>
+        <Card className="p-4 bg-gray-800 border-gray-700">
+          <div className="text-xs text-gray-400 uppercase mb-1">Payments</div>
+          <div className="text-sm text-gray-300">succeeded: {stats?.successfulPayments ?? 0}</div>
+          <div className="text-sm text-gray-300">pending: {stats?.pendingPayments ?? 0}</div>
+          <div className="text-sm text-gray-300">refunded: {stats?.refundedPayments ?? 0}</div>
+          <div className="text-sm text-gray-300">failed: {stats?.failedPayments ?? 0}</div>
+        </Card>
+        <Card className="p-4 bg-gray-800 border-gray-700">
+          <div className="text-xs text-gray-400 uppercase mb-1">Пользователи</div>
+          <div className="text-sm text-gray-300">Всего аккаунтов: {stats?.totalUsers ?? 0}</div>
+          <div className="text-sm text-gray-300">Owner-контур: {stats?.totalBusinessUsers ?? 0}</div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card className="p-4 bg-gray-800 border-gray-700 overflow-x-auto">
+          <h3 className="text-white font-semibold mb-3">Последние платежи</h3>
+          <table className="w-full text-sm min-w-[420px]">
+            <thead className="text-gray-400 text-xs uppercase">
+              <tr>
+                <th className="text-left pb-2">ID</th>
+                <th className="text-left pb-2">План</th>
+                <th className="text-left pb-2">Сумма</th>
+                <th className="text-left pb-2">Статус</th>
+                <th className="text-left pb-2">Дата</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentPayments.map((p) => (
+                <tr key={p.id} className="border-t border-gray-700">
+                  <td className="py-2 text-gray-300">{String(p.id).slice(0, 8)}</td>
+                  <td className="py-2 text-gray-300">{p.plan ?? "—"}</td>
+                  <td className="py-2 text-gray-300">{formatMoney(p.amount)}</td>
+                  <td className="py-2"><SubscriptionStatusBadge status={p.status} /></td>
+                  <td className="py-2 text-gray-400">{formatDateTime(p.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+
+        <Card className="p-4 bg-gray-800 border-gray-700 overflow-x-auto">
+          <h3 className="text-white font-semibold mb-3">Последние подписки</h3>
+          <table className="w-full text-sm min-w-[420px]">
+            <thead className="text-gray-400 text-xs uppercase">
+              <tr>
+                <th className="text-left pb-2">User</th>
+                <th className="text-left pb-2">План</th>
+                <th className="text-left pb-2">Статус</th>
+                <th className="text-left pb-2">До</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentSubscriptions.map((s) => (
+                <tr key={s.id} className="border-t border-gray-700">
+                  <td className="py-2 text-gray-300">{String(s.userId).slice(0, 8)}</td>
+                  <td className="py-2 text-gray-300">{s.plan ?? "—"}</td>
+                  <td className="py-2"><SubscriptionStatusBadge status={s.status} /></td>
+                  <td className="py-2 text-gray-400">{formatDateTime(s.endDate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
       </div>
     </div>
   );
 }
 
 export function AdminBusinesses() {
-  const [search, setSearch]         = useState("");
-  const [filterPlan, setFilterPlan] = useState("all");
-
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
   const { data, loading, error } = useAsync(() => getAdminBusinesses());
 
   if (loading) return <LoadingState />;
-  if (error)   return <ErrorState message={error.message} />;
+  if (error) return <ErrorState message={error.message} />;
 
   const businesses = data ?? [];
-  const filtered   = businesses.filter(b => {
-    const matchSearch = b.name.toLowerCase().includes(search.toLowerCase());
-    const matchPlan   = filterPlan === "all" || b.plan === filterPlan;
-    return matchSearch && matchPlan;
+  const filtered = businesses.filter((b) => {
+    const searchOk =
+      b.name.toLowerCase().includes(search.toLowerCase()) ||
+      String(b.ownerUserId ?? "").toLowerCase().includes(search.toLowerCase());
+    const filterOk = filter === "all" ? true : b.billingState === filter;
+    return searchOk && filterOk;
   });
 
   return (
     <div>
-      <PageHeader title="Бизнесы" subtitle={`${businesses.length} зарегистрировано`} />
+      <PageHeader title="Бизнес-аккаунты" subtitle={`Всего: ${businesses.length}`} />
 
       <div className="flex gap-3 mb-4 flex-wrap">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
-          className="border border-gray-700 bg-gray-800 text-white placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 w-60" />
-        {["all", "Free", "Pro", "Enterprise"].map(p => (
-          <button key={p} onClick={() => setFilterPlan(p)}
-            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${filterPlan === p ? "bg-white text-gray-900 border-white" : "text-gray-400 border-gray-600 hover:border-gray-400"}`}>
-            {p === "all" ? "Все" : p}
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск по бизнесу или owner user id..."
+          className="border border-gray-700 bg-gray-800 text-white placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 min-w-[260px]"
+        />
+        {["all", "paid", "trial", "past_due", "canceled", "inactive"].map((s) => (
+          <button
+            key={s}
+            onClick={() => setFilter(s)}
+            className={`px-3 py-1.5 rounded-full text-sm border transition-colors cursor-pointer ${
+              filter === s
+                ? "bg-white text-gray-900 border-white"
+                : "text-gray-400 border-gray-600 hover:border-gray-400"
+            }`}
+          >
+            {s}
           </button>
         ))}
       </div>
 
-      <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-x-auto">
-        <table className="w-full text-sm min-w-[500px]">
+      <Card className="p-0 bg-gray-800 border-gray-700 overflow-x-auto">
+        <table className="w-full text-sm min-w-[980px]">
           <thead>
-            <tr className="border-b border-gray-700">
-              {["Бизнес", "Тариф", "Пользователи", "Дата", "Выручка", "Статус"].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase">{h}</th>
+            <tr className="border-b border-gray-700 text-xs uppercase text-gray-400">
+              {[
+                "Бизнес",
+                "Owner user",
+                "Тариф",
+                "Billing",
+                "Subscription",
+                "MRR",
+                "Выручка",
+                "Платежи",
+                "Создан",
+                "Последний платёж",
+              ].map((h) => (
+                <th key={h} className="text-left px-4 py-3">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map(b => (
-              <tr key={b.id} className="border-b border-gray-700 cursor-pointer" style={{ backgroundColor: "transparent" }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = "#374151"}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center text-sm">🏢</div>
-                    <span className="font-medium text-white">{b.name}</span>
-                  </div>
+            {filtered.map((b) => (
+              <tr key={b.id} className="border-b border-gray-700">
+                <td className="px-4 py-3 text-white font-medium">{b.name}</td>
+                <td className="px-4 py-3 text-gray-400">{String(b.ownerUserId ?? "—").slice(0, 8)}</td>
+                <td className="px-4 py-3"><PlanBadge planKey={b.planKey} planName={b.planName} /></td>
+                <td className="px-4 py-3 text-gray-300">{b.billingState}</td>
+                <td className="px-4 py-3"><SubscriptionStatusBadge status={b.subscriptionStatus} /></td>
+                <td className="px-4 py-3 text-gray-300">{formatMoney(b.mrrContribution)}</td>
+                <td className="px-4 py-3 text-gray-300">{formatMoney(b.totalRevenue)}</td>
+                <td className="px-4 py-3 text-gray-300">
+                  {b.successfulPayments}/{b.totalPayments}
                 </td>
-                <td className="px-4 py-3"><PlanBadge plan={b.plan} /></td>
-                <td className="px-4 py-3 text-gray-300">{b.users}</td>
-                <td className="px-4 py-3 text-gray-400">{b.created}</td>
-                <td className="px-4 py-3 font-semibold text-white">{(b.revenue ?? 0).toLocaleString()} ₽</td>
-                <td className="px-4 py-3"><StatusDot status={b.status} /></td>
+                <td className="px-4 py-3 text-gray-400">{formatDateTime(b.createdAt)}</td>
+                <td className="px-4 py-3 text-gray-400">{formatDateTime(b.lastPaymentAt)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
     </div>
   );
 }
 
-const INITIAL_PLANS = [
-  {
-    name: "Free", price: "0 ₽", period: "/мес", color: "border-gray-600",
-    features: ["1 сотрудник", "До 50 записей/мес", "Базовая аналитика", "Онлайн-запись"],
-    notIncluded: ["SMS уведомления", "Расширенная аналитика", "Доступ к API"],
-  },
-  {
-    name: "Pro", price: "2 990 ₽", period: "/мес", color: "border-slate-500", popular: true,
-    features: ["До 10 сотрудников", "Безлимит записей", "SMS + Email", "Аналитика", "Свои шаблоны"],
-    notIncluded: ["Доступ к API", "White-label"],
-  },
-  {
-    name: "Enterprise", price: "9 990 ₽", period: "/мес", color: "border-zinc-500",
-    features: ["Безлимит сотрудников", "Безлимит записей", "SMS + Email + Push", "Полная аналитика", "Доступ к API", "White-label", "Приоритетная поддержка"],
-    notIncluded: [],
-  },
-];
-
-function normalizePlan(p) {
-  return {
-    ...p,
-    features: p.features ?? [],
-    notIncluded: p.not_included ?? p.notIncluded ?? [],
-  };
+function normalizePlanRows(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((p) => ({
+    id: p.id ?? null,
+    code: p.code ?? p.slug ?? p.name ?? "unknown",
+    name: p.name ?? p.display_name ?? p.code ?? "Unknown",
+    priceRub: Number(p.price_rub ?? p.priceRub ?? 0) || 0,
+    period: p.period ?? "/мес",
+    active: p.active !== false,
+  }));
 }
 
 export function AdminPlans() {
-  const { data: businessesData, loading: bizLoading, error: bizError } = useAsync(() => getAdminBusinesses());
-  const { data: plansData, loading: plansLoading, error: plansError, execute: reloadPlans } = useAsync(() => getPlans());
-  const [editingPlan, setEditingPlan] = useState(null);
-  const [editForm, setEditForm] = useState({ name: "", price: "", period: "" });
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
-  const [localPlans, setLocalPlans] = useState(null);
+  const { data: businessesData, loading: businessesLoading, error: businessesError } = useAsync(() => getAdminBusinesses());
+  const { data: plansData, loading: plansLoading } = useAsync(async () => {
+    try {
+      return await getPlans();
+    } catch {
+      return [];
+    }
+  });
 
-  const loading = bizLoading || plansLoading;
-
-  const plansFromApi = plansData && plansData.length > 0;
-  const plans = plansFromApi
-    ? plansData.map(normalizePlan)
-    : (localPlans ?? INITIAL_PLANS.map(p => ({ ...p, id: null })));
-
-  if (loading) return <LoadingState />;
-  if (bizError ?? plansError) {
-    const err = bizError ?? plansError;
-    return <ErrorState message={err.message} />;
-  }
+  if (businessesLoading || plansLoading) return <LoadingState />;
+  if (businessesError) return <ErrorState message={businessesError.message} />;
 
   const businesses = businessesData ?? [];
-  const plansWithCount = plans.map(p => ({
-    ...p,
-    count: businesses.filter(b => b.plan === p.name).length,
-  }));
-
-  const openEdit = (p) => {
-    setEditingPlan(p);
-    setEditForm({ name: p.name, price: p.price, period: p.period });
-    setSaveError(null);
-  };
-
-  const saveEdit = async () => {
-    if (!editingPlan) return;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      if (editingPlan.id) {
-        await updatePlan(editingPlan.id, {
-          name: editForm.name,
-          price: editForm.price,
-          period: editForm.period,
-        });
-        await reloadPlans();
-      } else {
-        setLocalPlans(prev =>
-          (prev ?? plans).map(p =>
-            p.name === editingPlan.name ? { ...p, ...editForm } : p
-          )
-        );
-      }
-      setEditingPlan(null);
-    } catch (err) {
-      setSaveError(err?.message || "Ошибка сохранения");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const plans = normalizePlanRows(plansData);
+  const byPlan = businesses.reduce((acc, b) => {
+    const key = b.planKey ?? "unknown";
+    acc.set(key, (acc.get(key) ?? 0) + 1);
+    return acc;
+  }, new Map());
 
   return (
     <div>
-      <PageHeader title="Тарифные планы" subtitle="Управление тарифами платформы" />
+      <PageHeader title="Тарифы платформы" subtitle="Read-only: безопасный режим для production" />
+
+      <Card className="p-4 bg-amber-950/40 border-amber-700 mb-4">
+        <div className="text-amber-200 text-sm">
+          Редактирование тарифов отключено: backend `updatePlan()` недоступен в этой версии.
+          Экран показывает текущие планы и фактическое распределение бизнесов без риска частичного обновления.
+        </div>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {plansWithCount.map(p => (
-          <div key={p.name} className={`bg-gray-800 border-2 ${p.color} rounded-xl p-6 relative`}>
-            {p.popular && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white text-gray-900 text-xs font-semibold px-3 py-1 rounded-full">Популярный</div>
-            )}
+        {(plans.length ? plans : [{ id: "fallback", code: "basic", name: "Basic", priceRub: 990, period: "/мес", active: true }]).map((p) => (
+          <Card key={p.id ?? p.code} className="p-5 bg-gray-800 border-gray-700">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <PlanBadge plan={p.name} />
-                <div className="mt-2">
-                  <span className="text-3xl font-bold text-white">{p.price}</span>
-                  <span className="text-gray-400 text-sm">{p.period}</span>
-                </div>
+                <PlanBadge planKey={p.code} planName={p.name} />
+                <div className="text-2xl font-bold text-white mt-2">{formatMoney(p.priceRub)}</div>
+                <div className="text-xs text-gray-400">{p.period}</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">{p.count}</div>
-                <div className="text-xs text-gray-400">клиентов</div>
+              <div className="text-right">
+                <div className="text-xl font-semibold text-white">{byPlan.get(p.code) ?? 0}</div>
+                <div className="text-xs text-gray-400">бизнесов</div>
               </div>
             </div>
-            <ul className="space-y-2 mb-4">
-              {p.features.map(f => (
-                <li key={f} className="flex items-center gap-2 text-sm text-gray-300"><span className="text-emerald-400">+</span> {f}</li>
-              ))}
-              {p.notIncluded.map(f => (
-                <li key={f} className="flex items-center gap-2 text-sm text-gray-600"><span>-</span> {f}</li>
-              ))}
-            </ul>
-            <button
-              type="button"
-              onClick={() => openEdit(p)}
-              className="w-full py-2 rounded-lg text-sm border border-gray-600 text-gray-400 hover:border-gray-400 hover:text-white transition-colors cursor-pointer"
-            >
-              Редактировать тариф
-            </button>
-          </div>
+            <div className="text-xs text-gray-400">Код плана: {p.code}</div>
+            <div className="text-xs text-gray-400 mt-1">Статус: {p.active ? "active" : "inactive"}</div>
+          </Card>
         ))}
       </div>
-
-      {editingPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60" onClick={() => !saving && setEditingPlan(null)} />
-          <div className="relative z-10 bg-gray-800 border border-gray-600 rounded-xl p-6 w-full max-w-md mx-4">
-            <h3 className="font-semibold text-white mb-4">Редактировать тариф</h3>
-            {saveError && (
-              <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-sm text-red-300">{saveError}</div>
-            )}
-            <div className="space-y-3 mb-4">
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Название</label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full border border-gray-600 bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Цена</label>
-                <input
-                  type="text"
-                  value={editForm.price}
-                  onChange={e => setEditForm(prev => ({ ...prev, price: e.target.value }))}
-                  className="w-full border border-gray-600 bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Период</label>
-                <input
-                  type="text"
-                  value={editForm.period}
-                  onChange={e => setEditForm(prev => ({ ...prev, period: e.target.value }))}
-                  className="w-full border border-gray-600 bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setEditingPlan(null)}
-                disabled={saving}
-                className="px-4 py-2 text-sm text-gray-400 border border-gray-600 rounded-lg hover:border-gray-500 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                onClick={saveEdit}
-                disabled={saving}
-                className="px-4 py-2 text-sm bg-white text-gray-900 rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {saving ? "Сохранение…" : "Сохранить"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -192,6 +192,10 @@ app.get(["/", "/health"], (_req, res) => {
       "/api/auth/register",
       "/api/payments/create",
       "/api/payments/webhook",
+      "/api/admin/stats",
+      "/api/admin/businesses",
+      "/api/admin/subscriptions",
+      "/api/admin/payments",
       "/api/monitoring/ingest",
       "/api/monitoring/self-test",
     ],
@@ -264,6 +268,253 @@ async function getActiveSubscriptionByUserId(userId) {
   const expired = latest.end_date && new Date(latest.end_date) < new Date();
   const status = expired && hasEntitlement(latest.status) ? "past_due" : normalizeSubscriptionStatus(latest.status);
   return { ...latest, status };
+}
+
+const SUBSCRIPTION_STATUS_PRIORITY = ["active", "trial", "past_due", "canceled", "inactive"];
+
+function normalizePaymentStatus(rawStatus) {
+  const status = String(rawStatus ?? "").toLowerCase();
+  if (status === "pending" || status === "succeeded" || status === "canceled" || status === "refunded") return status;
+  return "failed";
+}
+
+function toMoneyNumber(value) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  return n;
+}
+
+function buildLatestSubscriptionByUser(subscriptions) {
+  const grouped = new Map();
+  for (const row of subscriptions ?? []) {
+    const uid = row?.user_id;
+    if (!uid) continue;
+    const normalizedStatus = normalizeSubscriptionStatus(row.status);
+    const normalizedRow = { ...row, status: normalizedStatus };
+    const prev = grouped.get(uid);
+    if (!prev) {
+      grouped.set(uid, normalizedRow);
+      continue;
+    }
+    const prevRank = SUBSCRIPTION_STATUS_PRIORITY.indexOf(prev.status);
+    const nextRank = SUBSCRIPTION_STATUS_PRIORITY.indexOf(normalizedRow.status);
+    if (nextRank < prevRank) {
+      grouped.set(uid, normalizedRow);
+      continue;
+    }
+    if (nextRank === prevRank) {
+      const prevTs = new Date(prev.created_at ?? 0).valueOf();
+      const nextTs = new Date(normalizedRow.created_at ?? 0).valueOf();
+      if (nextTs > prevTs) grouped.set(uid, normalizedRow);
+    }
+  }
+  return grouped;
+}
+
+function normalizeSubscriptionRow(row) {
+  if (!row) return null;
+  const status = normalizeSubscriptionStatus(row.status);
+  const end = row.end_date ? new Date(row.end_date) : null;
+  const expired =
+    end instanceof Date && !Number.isNaN(end.valueOf()) && end.valueOf() < Date.now();
+  const normalizedStatus = expired && hasEntitlement(status) ? "past_due" : status;
+  return { ...row, status: normalizedStatus };
+}
+
+function computeBillingState(subscription) {
+  if (!subscription) return "inactive";
+  if (subscription.status === "trial") return "trial";
+  if (subscription.status === "active") return "paid";
+  if (subscription.status === "past_due") return "past_due";
+  if (subscription.status === "canceled") return "canceled";
+  return "inactive";
+}
+
+function requireAdminFromRole(role) {
+  return role === "admin";
+}
+
+async function requireAdminUser(req, res) {
+  const user = await getRequestUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Требуется авторизация", code: "auth_required" });
+    return null;
+  }
+  const role = await getUserRole(user.id);
+  if (!requireAdminFromRole(role)) {
+    res.status(403).json({ message: "Доступ запрещён", code: "forbidden" });
+    return null;
+  }
+  return user;
+}
+
+async function getAdminAnalyticsSnapshot() {
+  const [profilesRes, businessesRes, subscriptionsRes, paymentsRes, quotasRes] = await Promise.all([
+    supabaseAdmin.from("user_profiles").select("id, role"),
+    supabaseAdmin.from("businesses").select("id, user_id, name, status, created_at").order("created_at", { ascending: false }),
+    supabaseAdmin
+      .from("subscriptions")
+      .select("id, user_id, plan, status, start_date, end_date, created_at")
+      .order("created_at", { ascending: false })
+      .limit(2000),
+    supabaseAdmin
+      .from("payments")
+      .select("id, user_id, subscription_id, amount, currency, status, plan, created_at")
+      .order("created_at", { ascending: false })
+      .limit(3000),
+    supabaseAdmin.from("plan_quotas").select("plan, display_name, price_rub"),
+  ]);
+
+  if (profilesRes.error) throw new ApiError(profilesRes.error.message, { code: "validation_error", status: 400 });
+  if (businessesRes.error) throw new ApiError(businessesRes.error.message, { code: "validation_error", status: 400 });
+  if (subscriptionsRes.error) throw new ApiError(subscriptionsRes.error.message, { code: "validation_error", status: 400 });
+  if (paymentsRes.error) throw new ApiError(paymentsRes.error.message, { code: "validation_error", status: 400 });
+  if (quotasRes.error) throw new ApiError(quotasRes.error.message, { code: "validation_error", status: 400 });
+
+  const profiles = profilesRes.data ?? [];
+  const businesses = businessesRes.data ?? [];
+  const subscriptions = (subscriptionsRes.data ?? []).map(normalizeSubscriptionRow).filter(Boolean);
+  const payments = paymentsRes.data ?? [];
+  const quotas = quotasRes.data ?? [];
+
+  const planMeta = new Map();
+  for (const q of quotas) {
+    planMeta.set(q.plan, {
+      displayName: q.display_name ?? String(q.plan ?? "").toUpperCase(),
+      priceRub: toMoneyNumber(q.price_rub),
+    });
+  }
+
+  const latestSubByUser = buildLatestSubscriptionByUser(subscriptions);
+
+  const paymentsByUser = new Map();
+  const paymentStatusCounters = {
+    pending: 0,
+    succeeded: 0,
+    canceled: 0,
+    refunded: 0,
+    failed: 0,
+  };
+  let totalRevenue = 0;
+  for (const payment of payments) {
+    const status = normalizePaymentStatus(payment.status);
+    paymentStatusCounters[status] = (paymentStatusCounters[status] ?? 0) + 1;
+    const uid = payment.user_id;
+    if (!uid) continue;
+    const amount = toMoneyNumber(payment.amount);
+    const prev = paymentsByUser.get(uid) ?? {
+      successfulPayments: 0,
+      totalPayments: 0,
+      totalRevenue: 0,
+      lastPaymentAt: null,
+    };
+    prev.totalPayments += 1;
+    if (status === "succeeded") {
+      prev.successfulPayments += 1;
+      prev.totalRevenue += amount;
+      totalRevenue += amount;
+    }
+    if (!prev.lastPaymentAt || new Date(payment.created_at ?? 0) > new Date(prev.lastPaymentAt)) {
+      prev.lastPaymentAt = payment.created_at ?? null;
+    }
+    paymentsByUser.set(uid, prev);
+  }
+
+  const businessRows = businesses.map((business) => {
+    const latestSub = latestSubByUser.get(business.user_id) ?? null;
+    const subscription = latestSub ? normalizeSubscriptionRow(latestSub) : null;
+    const paymentAgg = paymentsByUser.get(business.user_id) ?? null;
+    const billingState = computeBillingState(subscription);
+    const planKey = subscription?.plan ?? null;
+    const planInfo = planKey ? planMeta.get(planKey) : null;
+    const isPaid = billingState === "paid";
+    return {
+      id: business.id,
+      ownerUserId: business.user_id,
+      name: business.name ?? `Business #${business.id}`,
+      businessStatus: business.status ?? "unknown",
+      createdAt: business.created_at ?? null,
+      planKey,
+      planName: planInfo?.displayName ?? "—",
+      subscriptionStatus: subscription?.status ?? "inactive",
+      billingState,
+      startDate: subscription?.start_date ?? null,
+      endDate: subscription?.end_date ?? null,
+      mrrContribution: isPaid ? toMoneyNumber(planInfo?.priceRub) : 0,
+      successfulPayments: paymentAgg?.successfulPayments ?? 0,
+      totalPayments: paymentAgg?.totalPayments ?? 0,
+      totalRevenue: paymentAgg?.totalRevenue ?? 0,
+      lastPaymentAt: paymentAgg?.lastPaymentAt ?? null,
+    };
+  });
+
+  const totalUsers = profiles.length;
+  const totalBusinesses = businessRows.length;
+  const paidBusinesses = businessRows.filter((b) => b.billingState === "paid").length;
+  const trialBusinesses = businessRows.filter((b) => b.billingState === "trial").length;
+  const pastDueBusinesses = businessRows.filter((b) => b.billingState === "past_due").length;
+  const canceledBusinesses = businessRows.filter((b) => b.billingState === "canceled").length;
+  const inactiveBusinesses = businessRows.filter((b) => b.billingState === "inactive").length;
+  const mrr = businessRows.reduce((sum, b) => sum + toMoneyNumber(b.mrrContribution), 0);
+
+  const denominator = paidBusinesses + trialBusinesses;
+  const trialToPaidRate = denominator > 0 ? (paidBusinesses / denominator) * 100 : 0;
+
+  const recentPayments = payments.slice(0, 50).map((payment) => ({
+    id: payment.id,
+    userId: payment.user_id,
+    subscriptionId: payment.subscription_id,
+    amount: toMoneyNumber(payment.amount),
+    currency: payment.currency ?? "RUB",
+    status: normalizePaymentStatus(payment.status),
+    plan: payment.plan ?? null,
+    createdAt: payment.created_at ?? null,
+  }));
+
+  const recentSubscriptions = [...latestSubByUser.values()]
+    .map(normalizeSubscriptionRow)
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.created_at ?? 0).valueOf() - new Date(left.created_at ?? 0).valueOf())
+    .slice(0, 100)
+    .map((s) => ({
+      id: s.id,
+      userId: s.user_id,
+      plan: s.plan ?? null,
+      status: s.status ?? "inactive",
+      startDate: s.start_date ?? null,
+      endDate: s.end_date ?? null,
+      createdAt: s.created_at ?? null,
+    }));
+
+  return {
+    totals: {
+      totalUsers,
+      totalBusinesses,
+      paidBusinesses,
+      trialBusinesses,
+      activeSubscriptions: paidBusinesses,
+      trialSubscriptions: trialBusinesses,
+      pastDueSubscriptions: pastDueBusinesses,
+      canceledSubscriptions: canceledBusinesses,
+      inactiveSubscriptions: inactiveBusinesses,
+    },
+    finance: {
+      totalRevenue,
+      mrr,
+      pendingPayments: paymentStatusCounters.pending,
+      successfulPayments: paymentStatusCounters.succeeded,
+      canceledPayments: paymentStatusCounters.canceled,
+      refundedPayments: paymentStatusCounters.refunded,
+      failedPayments: paymentStatusCounters.failed,
+    },
+    funnel: {
+      trialToPaidRate,
+      denominator,
+    },
+    businesses: businessRows,
+    subscriptions: recentSubscriptions,
+    payments: recentPayments,
+  };
 }
 
 app.post(
@@ -497,14 +748,83 @@ app.post("/api/payments/create", async (req, res) => {
 });
 
 app.get("/api/admin/stats", async (req, res) => {
-  const user = await getRequestUser(req);
-  if (!user) return res.status(401).json({ message: "Требуется авторизация", code: "auth_required" });
-  const role = await getUserRole(user.id);
-  if (role !== "admin") return res.status(403).json({ message: "Доступ запрещён", code: "forbidden" });
+  const user = await requireAdminUser(req, res);
+  if (!user) return;
+  try {
+    const snapshot = await getAdminAnalyticsSnapshot();
+    const totalRevenue = snapshot.finance.totalRevenue;
+    const activeSubscriptions = snapshot.totals.activeSubscriptions;
+    const totalBusinesses = snapshot.totals.totalBusinesses;
+    const totalUsers = snapshot.totals.totalUsers;
+    return res.json({
+      totalRevenue,
+      activeSubscriptions,
+      totalBusinessUsers: totalBusinesses,
+      totalUsers,
+      mrr: snapshot.finance.mrr,
+      paidBusinesses: snapshot.totals.paidBusinesses,
+      trialBusinesses: snapshot.totals.trialBusinesses,
+      trialToPaidRate: snapshot.funnel.trialToPaidRate,
+      pastDueSubscriptions: snapshot.totals.pastDueSubscriptions,
+      canceledSubscriptions: snapshot.totals.canceledSubscriptions,
+      inactiveSubscriptions: snapshot.totals.inactiveSubscriptions,
+      pendingPayments: snapshot.finance.pendingPayments,
+      refundedPayments: snapshot.finance.refundedPayments,
+      failedPayments: snapshot.finance.failedPayments,
+      successfulPayments: snapshot.finance.successfulPayments,
+    });
+  } catch (e) {
+    if (e instanceof ApiError) {
+      return res.status(e.status).json({ message: e.message, code: e.code, field: e.field });
+    }
+    logError(e, { requestId: req.requestId, route: "/api/admin/stats" });
+    return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
+  }
+});
 
-  const { data, error } = await supabaseAdmin.rpc("get_admin_stats");
-  if (error) return res.status(400).json({ message: error.message, code: "validation_error" });
-  return res.json(data);
+app.get("/api/admin/businesses", async (req, res) => {
+  const user = await requireAdminUser(req, res);
+  if (!user) return;
+  try {
+    const snapshot = await getAdminAnalyticsSnapshot();
+    return res.json(snapshot.businesses);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      return res.status(e.status).json({ message: e.message, code: e.code, field: e.field });
+    }
+    logError(e, { requestId: req.requestId, route: "/api/admin/businesses" });
+    return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
+  }
+});
+
+app.get("/api/admin/subscriptions", async (req, res) => {
+  const user = await requireAdminUser(req, res);
+  if (!user) return;
+  try {
+    const snapshot = await getAdminAnalyticsSnapshot();
+    return res.json(snapshot.subscriptions);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      return res.status(e.status).json({ message: e.message, code: e.code, field: e.field });
+    }
+    logError(e, { requestId: req.requestId, route: "/api/admin/subscriptions" });
+    return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
+  }
+});
+
+app.get("/api/admin/payments", async (req, res) => {
+  const user = await requireAdminUser(req, res);
+  if (!user) return;
+  try {
+    const snapshot = await getAdminAnalyticsSnapshot();
+    return res.json(snapshot.payments);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      return res.status(e.status).json({ message: e.message, code: e.code, field: e.field });
+    }
+    logError(e, { requestId: req.requestId, route: "/api/admin/payments" });
+    return res.status(500).json({ message: "Внутренняя ошибка сервера", code: "server_error" });
+  }
 });
 
 app.use((_req, res) => {

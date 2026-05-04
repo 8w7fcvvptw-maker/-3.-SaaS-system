@@ -15,6 +15,7 @@ import { useAsync } from "../../hooks/useAsync";
 import { useMinWidthMd } from "../../hooks/useMinWidthMd.js";
 import { normalizePhone } from "../../lib/phoneUtils";
 import { SAAS_BUSINESS_PROFILE_CHANGED } from "../../lib/saasEvents.js";
+import { validatePasswordRepeat, validateRegisterPassword } from "../../lib/authFormValidation.js";
 import { useSubscription } from "../../hooks/useSubscription.js";
 import { PLAN_LIMITS, redirectToPayment } from "../../lib/subscription.js";
 import {
@@ -27,6 +28,8 @@ import {
   createAppointment, updateAppointment, updateAppointmentStatus, deleteAppointment,
   getRevenueData, getPopularServicesStats,
   getNotificationTemplates, createNotificationTemplate, updateNotificationTemplate, deleteNotificationTemplate, getNotificationEvents,
+  getBusinessBookingSettings, updateBusinessBookingSettings,
+  changePassword,
 } from "../../lib/api";
 
 /** Статусы, в которых разрешено удаление записи (совпадает с backend). */
@@ -1934,21 +1937,29 @@ export function AnalyticsPage() {
 // ── 2.13 Настройки (/settings) ────────────────────────────────
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile");
-  const [notifications, setNotifications] = useState(() => {
-    try {
-      const s = localStorage.getItem("settings_notifications");
-      return s ? { ...{ email: true, sms: true, reminderHours: 24 }, ...JSON.parse(s) } : { email: true, sms: true, reminderHours: 24 };
-    } catch { return { email: true, sms: true, reminderHours: 24 }; }
+  const [notifications, setNotifications] = useState({
+    email: true,
+    sms: true,
+    reminderHours: 24,
+    smsAddonEnabled: false,
+    advancedNotificationsEnabled: false,
   });
-  const [booking, setBooking] = useState(() => {
-    try {
-      const s = localStorage.getItem("settings_booking");
-      return s ? { ...{ onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 }, ...JSON.parse(s) } : { onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 };
-    } catch { return { onlineBooking: true, bufferMinutes: 15, cancellationHours: 24 }; }
+  const [booking, setBooking] = useState({
+    onlineBooking: true,
+    bufferMinutes: 15,
+    cancellationHours: 24,
+    depositEnabled: false,
+    depositAmount: 0,
+    selfServiceLinksEnabled: false,
   });
   const { theme, setTheme } = useTheme();
 
   const { data: bizData, loading, error } = useAsync(() => getBusiness());
+  const {
+    data: bookingSettingsData,
+    loading: bookingSettingsLoading,
+    error: bookingSettingsError,
+  } = useAsync(() => getBusinessBookingSettings());
   const [biz, setBiz] = useState(null);
   const [saving, setSaving] = useState(false);
   /** Сообщение после сохранения профиля (видно в форме, без alert) */
@@ -1956,6 +1967,11 @@ export function SettingsPage() {
   const profileFeedbackTimer = useRef(null);
   const [localSettingsFeedback, setLocalSettingsFeedback] = useState(null);
   const localSettingsTimer = useRef(null);
+  const [passwordForm, setPasswordForm] = useState({ nextPassword: "", nextPassword2: "" });
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordPending, setPasswordPending] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState(null);
+  const [showPasswordFields, setShowPasswordFields] = useState(false);
 
   const clearTimer = (ref) => {
     if (ref.current) {
@@ -1970,6 +1986,25 @@ export function SettingsPage() {
       clearTimer(localSettingsTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!bookingSettingsData) return;
+    setBooking({
+      onlineBooking: bookingSettingsData.onlineBookingEnabled !== false,
+      bufferMinutes: Number(bookingSettingsData.bufferMinutes ?? 15) || 15,
+      cancellationHours: Number(bookingSettingsData.cancellationHours ?? 24) || 24,
+      depositEnabled: bookingSettingsData.depositEnabled === true,
+      depositAmount: Number(bookingSettingsData.depositAmount ?? 0) || 0,
+      selfServiceLinksEnabled: bookingSettingsData.selfServiceLinksEnabled === true,
+    });
+    setNotifications({
+      email: bookingSettingsData.notificationsEmailEnabled !== false,
+      sms: bookingSettingsData.notificationsSmsEnabled !== false,
+      reminderHours: Number(bookingSettingsData.reminderHours ?? 24) || 24,
+      smsAddonEnabled: bookingSettingsData.smsAddonEnabled === true,
+      advancedNotificationsEnabled: bookingSettingsData.advancedNotificationsEnabled === true,
+    });
+  }, [bookingSettingsData]);
 
   if (bizData && !biz) setBiz({ ...bizData });
 
@@ -2017,12 +2052,57 @@ export function SettingsPage() {
     }, 5000);
   };
 
-  const handleSaveSettings = (key) => {
+  const handleSaveSettings = async (key) => {
+    setSaving(true);
     try {
-      localStorage.setItem(`settings_${key}`, JSON.stringify(key === "booking" ? booking : notifications));
-      showLocalSaved("Настройки сохранены в этом браузере.", "ok");
-    } catch {
-      showLocalSaved("Не удалось записать в браузер — проверьте доступ к хранилищу.", "err");
+      if (key === "booking") {
+        await updateBusinessBookingSettings({
+          onlineBookingEnabled: booking.onlineBooking,
+          bufferMinutes: Number(booking.bufferMinutes) || 0,
+          cancellationHours: Number(booking.cancellationHours) || 0,
+          depositEnabled: booking.depositEnabled,
+          depositAmount: Number(booking.depositAmount) || 0,
+          selfServiceLinksEnabled: booking.selfServiceLinksEnabled,
+        });
+      } else {
+        await updateBusinessBookingSettings({
+          notificationsEmailEnabled: notifications.email,
+          notificationsSmsEnabled: notifications.sms,
+          reminderHours: Number(notifications.reminderHours) || 0,
+          smsAddonEnabled: notifications.smsAddonEnabled,
+          advancedNotificationsEnabled: notifications.advancedNotificationsEnabled,
+        });
+      }
+      showLocalSaved("Настройки сохранены в базе данных.", "ok");
+    } catch (e) {
+      showLocalSaved(e?.message ?? "Не удалось сохранить настройки.", "err");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordFeedback(null);
+    const nextErrors = {
+      nextPassword: validateRegisterPassword(passwordForm.nextPassword),
+      nextPassword2: validatePasswordRepeat(passwordForm.nextPassword, passwordForm.nextPassword2),
+    };
+    setPasswordErrors(nextErrors);
+    if (nextErrors.nextPassword || nextErrors.nextPassword2) return;
+
+    setPasswordPending(true);
+    try {
+      await changePassword(passwordForm.nextPassword);
+      setPasswordForm({ nextPassword: "", nextPassword2: "" });
+      setPasswordFeedback({ type: "ok", text: "Пароль успешно изменен." });
+    } catch (err) {
+      setPasswordFeedback({
+        type: "err",
+        text: err?.message ?? "Не удалось изменить пароль. Попробуйте позже.",
+      });
+    } finally {
+      setPasswordPending(false);
     }
   };
 
@@ -2048,72 +2128,186 @@ export function SettingsPage() {
         ))}
       </div>
 
+      {bookingSettingsError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+          Не удалось загрузить настройки записи: {bookingSettingsError.message}
+        </div>
+      )}
+
       {activeTab === "profile" && (
         loading ? <LoadingState /> :
         error   ? <ErrorState message={error.message} /> :
         biz ? (
-          <Card className="p-6 max-w-lg">
-            <div className="space-y-4">
-              {[["Название бизнеса", "name"], ["Адрес", "address"], ["Телефон", "phone"], ["Email", "email"]].map(([label, field]) => (
-                <div key={field}>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">{label}</label>
-                  <input
-                    value={biz[field] ?? ""}
+          <div className="space-y-4 max-w-lg">
+            <Card className="p-6">
+              <div className="space-y-4">
+                {[["Название бизнеса", "name"], ["Адрес", "address"], ["Телефон", "phone"], ["Email", "email"]].map(([label, field]) => (
+                  <div key={field}>
+                    <label className="text-sm font-medium text-gray-700 block mb-1">{label}</label>
+                    <input
+                      value={biz[field] ?? ""}
+                      onChange={(e) => {
+                        if (profileFeedback?.type === "ok") {
+                          clearTimer(profileFeedbackTimer);
+                          setProfileFeedback(null);
+                        }
+                        setBiz((p) => ({
+                          ...p,
+                          [field]: field === "phone" ? normalizePhone(e.target.value) : e.target.value,
+                        }));
+                      }}
+                      className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
+                    />
+                  </div>
+                ))}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Описание</label>
+                  <textarea
+                    value={biz.description ?? ""}
                     onChange={(e) => {
                       if (profileFeedback?.type === "ok") {
                         clearTimer(profileFeedbackTimer);
                         setProfileFeedback(null);
                       }
-                      setBiz((p) => ({
-                        ...p,
-                        [field]: field === "phone" ? normalizePhone(e.target.value) : e.target.value,
-                      }));
+                      setBiz((p) => ({ ...p, description: e.target.value }));
                     }}
-                    className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
+                    rows={3}
+                    className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 resize-none"
                   />
                 </div>
-              ))}
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Описание</label>
-                <textarea
-                  value={biz.description ?? ""}
-                  onChange={(e) => {
-                    if (profileFeedback?.type === "ok") {
-                      clearTimer(profileFeedbackTimer);
-                      setProfileFeedback(null);
-                    }
-                    setBiz((p) => ({ ...p, description: e.target.value }));
-                  }}
-                  rows={3}
-                  className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 resize-none"
-                />
+                {profileFeedback && (
+                  <div
+                    role="status"
+                    className={`rounded-lg px-3 py-2.5 text-sm ${
+                      profileFeedback.type === "ok"
+                        ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/50"
+                        : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-900/50"
+                    }`}
+                  >
+                    {profileFeedback.type === "ok" ? (
+                      <span className="font-medium">✓ {profileFeedback.text}</span>
+                    ) : (
+                      <span>{profileFeedback.text}</span>
+                    )}
+                  </div>
+                )}
+                <Button onClick={handleSaveBiz} disabled={saving}>
+                  {saving ? "Сохранение…" : "Сохранить изменения"}
+                </Button>
               </div>
-              {profileFeedback && (
-                <div
-                  role="status"
-                  className={`rounded-lg px-3 py-2.5 text-sm ${
-                    profileFeedback.type === "ok"
-                      ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/50"
-                      : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-900/50"
-                  }`}
-                >
-                  {profileFeedback.type === "ok" ? (
-                    <span className="font-medium">✓ {profileFeedback.text}</span>
-                  ) : (
-                    <span>{profileFeedback.text}</span>
+            </Card>
+
+            <Card className="p-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Смена пароля</h3>
+              <form className="space-y-4" onSubmit={handleChangePassword} noValidate>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Новый пароль</label>
+                  <div className="relative">
+                    <input
+                      type={showPasswordFields ? "text" : "password"}
+                      autoComplete="new-password"
+                      value={passwordForm.nextPassword}
+                      onChange={(e) => {
+                        setPasswordForm((p) => ({ ...p, nextPassword: e.target.value }));
+                        if (passwordErrors.nextPassword) {
+                          setPasswordErrors((p) => ({ ...p, nextPassword: null }));
+                        }
+                      }}
+                      className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-100 cursor-pointer"
+                      onClick={() => setShowPasswordFields((v) => !v)}
+                      aria-label={showPasswordFields ? "Скрыть пароль" : "Показать пароль"}
+                    >
+                      {showPasswordFields ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                          <line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {passwordErrors.nextPassword && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">{passwordErrors.nextPassword}</p>
                   )}
                 </div>
-              )}
-              <Button onClick={handleSaveBiz} disabled={saving}>
-                {saving ? "Сохранение…" : "Сохранить изменения"}
-              </Button>
-            </div>
-          </Card>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Повтор нового пароля</label>
+                  <div className="relative">
+                    <input
+                      type={showPasswordFields ? "text" : "password"}
+                      autoComplete="new-password"
+                      value={passwordForm.nextPassword2}
+                      onChange={(e) => {
+                        setPasswordForm((p) => ({ ...p, nextPassword2: e.target.value }));
+                        if (passwordErrors.nextPassword2) {
+                          setPasswordErrors((p) => ({ ...p, nextPassword2: null }));
+                        }
+                      }}
+                      className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-100 cursor-pointer"
+                      onClick={() => setShowPasswordFields((v) => !v)}
+                      aria-label={showPasswordFields ? "Скрыть пароль" : "Показать пароль"}
+                    >
+                      {showPasswordFields ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                          <line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {passwordErrors.nextPassword2 && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">{passwordErrors.nextPassword2}</p>
+                  )}
+                </div>
+                {passwordFeedback && (
+                  <div
+                    role="status"
+                    className={`rounded-lg px-3 py-2.5 text-sm ${
+                      passwordFeedback.type === "ok"
+                        ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/50"
+                        : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-900/50"
+                    }`}
+                  >
+                    {passwordFeedback.type === "ok" ? (
+                      <span className="font-medium">✓ {passwordFeedback.text}</span>
+                    ) : (
+                      <span>{passwordFeedback.text}</span>
+                    )}
+                  </div>
+                )}
+                <Button type="submit" disabled={passwordPending}>
+                  {passwordPending ? "Сохранение…" : "Обновить пароль"}
+                </Button>
+              </form>
+            </Card>
+          </div>
         ) : null
       )}
 
       {activeTab === "booking" && (
         <Card className="p-6 max-w-lg">
+          {bookingSettingsLoading ? (
+            <LoadingState />
+          ) : (
           <div className="space-y-5">
             {localSettingsFeedback && (
               <div
@@ -2142,21 +2336,55 @@ export function SettingsPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Буфер между записями (мин)</label>
-              <input type="number" value={booking.bufferMinutes} onChange={e => setBooking(p => ({ ...p, bufferMinutes: +e.target.value }))}
+              <input type="number" min={0} max={180} value={booking.bufferMinutes} onChange={e => setBooking(p => ({ ...p, bufferMinutes: +e.target.value }))}
                 className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Политика отмены (часов до)</label>
-              <input type="number" value={booking.cancellationHours} onChange={e => setBooking(p => ({ ...p, cancellationHours: +e.target.value }))}
+              <input type="number" min={0} max={720} value={booking.cancellationHours} onChange={e => setBooking(p => ({ ...p, cancellationHours: +e.target.value }))}
                 className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70" />
             </div>
-            <Button onClick={() => handleSaveSettings("booking")}>Сохранить</Button>
+            <div className="pt-2 border-t border-gray-100 dark:border-zinc-700">
+              <div className="font-medium text-gray-900 dark:text-white mb-2">Prepaid booking (основа монетизации)</div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-gray-500 dark:text-gray-400">Включить депозит при онлайн-записи</div>
+                <button onClick={() => setBooking(p => ({ ...p, depositEnabled: !p.depositEnabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${booking.depositEnabled ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${booking.depositEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Сумма депозита (₽)</label>
+              <input
+                type="number"
+                min={0}
+                step="100"
+                value={booking.depositAmount}
+                disabled={!booking.depositEnabled}
+                onChange={e => setBooking(p => ({ ...p, depositAmount: +e.target.value }))}
+                className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70 disabled:opacity-60"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium text-gray-900 dark:text-white">Self-service ссылки</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">Подготовка к ссылкам на перенос и отмену записи</div>
+              </div>
+              <button onClick={() => setBooking(p => ({ ...p, selfServiceLinksEnabled: !p.selfServiceLinksEnabled }))}
+                className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${booking.selfServiceLinksEnabled ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${booking.selfServiceLinksEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+            <Button onClick={() => handleSaveSettings("booking")} disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
           </div>
+          )}
         </Card>
       )}
 
       {activeTab === "notifications" && (
         <Card className="p-6 max-w-lg">
+          {bookingSettingsLoading ? (
+            <LoadingState />
+          ) : (
           <div className="space-y-5">
             {localSettingsFeedback && (
               <div
@@ -2184,11 +2412,34 @@ export function SettingsPage() {
             ))}
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Напоминание за (часов)</label>
-              <input type="number" value={notifications.reminderHours} onChange={e => setNotifications(p => ({ ...p, reminderHours: +e.target.value }))}
+              <input type="number" min={0} max={720} value={notifications.reminderHours} onChange={e => setNotifications(p => ({ ...p, reminderHours: +e.target.value }))}
                 className="w-full border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/70" />
             </div>
-            <Button onClick={() => handleSaveSettings("notifications")}>Сохранить</Button>
+            <div className="pt-2 border-t border-gray-100 dark:border-zinc-700 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">SMS add-on</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Платная функция: реальная отправка SMS</div>
+                </div>
+                <button onClick={() => setNotifications(p => ({ ...p, smsAddonEnabled: !p.smsAddonEnabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${notifications.smsAddonEnabled ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${notifications.smsAddonEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">Advanced notifications</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Основа для умных сценариев и A/B-уведомлений</div>
+                </div>
+                <button onClick={() => setNotifications(p => ({ ...p, advancedNotificationsEnabled: !p.advancedNotificationsEnabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative ${notifications.advancedNotificationsEnabled ? "bg-slate-800 dark:bg-slate-600" : "bg-gray-300 dark:bg-zinc-600"}`}>
+                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${notifications.advancedNotificationsEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+            </div>
+            <Button onClick={() => handleSaveSettings("notifications")} disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
           </div>
+          )}
         </Card>
       )}
 

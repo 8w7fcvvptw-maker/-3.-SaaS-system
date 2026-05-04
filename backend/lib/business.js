@@ -26,16 +26,38 @@ export async function getBusinessBySlug(slug) {
     throw new ApiError('Не указан адрес салона (slug)', { field: 'slug', code: 'validation_error', status: 400 });
   }
   const s = String(slug).trim().toLowerCase();
-  const { data, error } = await supabase
+  let data = null;
+  let error = null;
+  ({ data, error } = await supabase
     .from('businesses')
-    .select('*')
+    .select('*, business_booking_settings(*)')
     .eq('slug', s)
     .eq('status', 'active')
-    .maybeSingle();
+    .maybeSingle());
+  if (error && String(error.message ?? '').includes('business_booking_settings')) {
+    ({ data, error } = await supabase
+      .from('businesses')
+      .select('*')
+      .eq('slug', s)
+      .eq('status', 'active')
+      .maybeSingle());
+  }
   if (error) throwOnError({ data: null, error });
   if (!data || typeof data !== 'object') return null;
-  const { user_id: _omitUserId, ...rest } = data;
-  return rest;
+  const settingsRaw = data.business_booking_settings;
+  const bookingSettings = Array.isArray(settingsRaw)
+    ? (settingsRaw[0] ?? null)
+    : (settingsRaw ?? null);
+  const { user_id: _omitUserId, business_booking_settings: _omitSettingsRel, ...rest } = data;
+  if (!bookingSettings) return rest;
+  return {
+    ...rest,
+    booking_settings: bookingSettings,
+    online_booking_enabled: bookingSettings.online_booking_enabled !== false,
+    buffer_minutes: bookingSettings.buffer_minutes ?? 15,
+    cancellation_hours: bookingSettings.cancellation_hours ?? 24,
+    reminder_hours: bookingSettings.reminder_hours ?? 24,
+  };
 }
 
 /** Кабинет: без аргумента (только своя запись). Публично: строка slug. */

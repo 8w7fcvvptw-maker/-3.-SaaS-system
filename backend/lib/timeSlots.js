@@ -21,23 +21,39 @@ export async function getTimeSlots() {
  * @param {string} date — YYYY-MM-DD
  * @param {number|null|undefined} staffId
  * @param {number|null|undefined} businessId
- * @param {string|null|undefined} publicSlug — для гостя: RPC get_public_busy_slot_times (нужна миграция 005)
+ * @param {string|null|undefined} publicSlug — для гостя: RPC get_public_busy_slot_times_v2
+ * @param {{ serviceId?: number|null, duration?: number|null }|null|undefined} options
  */
-export async function getBusySlots(date, staffId, businessId, publicSlug = null) {
+export async function getBusySlots(date, staffId, businessId, publicSlug = null, options = null) {
   if (!date) return [];
   assertDateIso(date, 'date');
+  const duration = Math.max(1, Math.min(24 * 60, Number(options?.duration ?? 30) || 30));
+  const serviceId =
+    options?.serviceId == null || options?.serviceId === ''
+      ? null
+      : assertId(Number(options.serviceId), 'service_id');
 
   if (businessId != null) {
     const bid = assertId(Number(businessId), 'business_id');
     if (publicSlug != null && String(publicSlug).trim() !== '') {
       const s = assertSlug(String(publicSlug).trim().toLowerCase(), 'slug');
-      const { data, error } = await supabase.rpc('get_public_busy_slot_times', {
+      const { data, error } = await supabase.rpc('get_public_busy_slot_times_v2', {
+        p_slug: s,
+        p_date: date,
+        p_staff_id: staffId != null ? assertId(Number(staffId), 'staff_id') : null,
+        p_service_id: serviceId,
+        p_duration: duration,
+      });
+      if (!error && data != null) {
+        return data.map((r) => r.slot_time ?? r.time).filter(Boolean);
+      }
+      const oldFn = await supabase.rpc('get_public_busy_slot_times', {
         p_slug: s,
         p_date: date,
         p_staff_id: staffId != null ? assertId(Number(staffId), 'staff_id') : null,
       });
-      if (!error && data != null) {
-        return data.map((r) => r.slot_time ?? r.time).filter(Boolean);
+      if (!oldFn.error && oldFn.data != null) {
+        return oldFn.data.map((r) => r.slot_time ?? r.time).filter(Boolean);
       }
       return [];
     }
@@ -51,13 +67,23 @@ export async function getBusySlots(date, staffId, businessId, publicSlug = null)
         status: 403,
       });
     }
-    const { data, error } = await supabase.rpc('get_busy_slot_times', {
+    const { data, error } = await supabase.rpc('get_busy_slot_times_v2', {
+      p_business_id: bid,
+      p_date: date,
+      p_staff_id: staffId != null ? assertId(Number(staffId), 'staff_id') : null,
+      p_service_id: serviceId,
+      p_duration: duration,
+    });
+    if (!error && data != null) {
+      return data.map((r) => r.slot_time ?? r.time).filter(Boolean);
+    }
+    const oldFn = await supabase.rpc('get_busy_slot_times', {
       p_business_id: bid,
       p_date: date,
       p_staff_id: staffId != null ? assertId(Number(staffId), 'staff_id') : null,
     });
-    if (!error && data != null) {
-      return data.map((r) => r.slot_time ?? r.time).filter(Boolean);
+    if (!oldFn.error && oldFn.data != null) {
+      return oldFn.data.map((r) => r.slot_time ?? r.time).filter(Boolean);
     }
     const query = supabase
       .from('appointments')

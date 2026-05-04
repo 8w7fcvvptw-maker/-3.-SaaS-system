@@ -205,6 +205,20 @@ export async function resetPasswordForEmail(email) {
   if (error) throw new ApiError(error.message || 'Не удалось отправить письмо', { code: 'validation_error', status: 400 });
 }
 
+/** Смена пароля в активной сессии (кабинет владельца). */
+export async function changePassword(newPassword) {
+  const password = assertPassword(newPassword);
+  await requireSession();
+  const { data, error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    throw new ApiError(error.message || 'Не удалось сменить пароль', {
+      code: 'validation_error',
+      status: 400,
+    });
+  }
+  return data?.user ?? null;
+}
+
 /** Текущий пользователь (null если не вошёл) */
 export async function getCurrentUser() {
   const { data, error } = await supabase.auth.getUser();

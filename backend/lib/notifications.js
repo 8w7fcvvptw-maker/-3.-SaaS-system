@@ -49,6 +49,11 @@ const DEFAULT_NOTIFICATION_TEMPLATES = [
 ];
 
 const ALLOWED_NOTIFICATION_CHANNELS = new Set(['sms', 'email', 'sms_email']);
+const DEFAULT_NOTIFICATION_PREFS = {
+  notifications_email_enabled: true,
+  notifications_sms_enabled: true,
+  sms_addon_enabled: false,
+};
 
 function assertNotificationChannel(value, field = 'channel') {
   const channel = assertNonEmptyString(value, field, 32).toLowerCase();
@@ -222,6 +227,7 @@ export async function enqueueNotificationEventsForAppointment(eventType, appoint
     'appointment_id'
   );
 
+  const prefs = await getNotificationPreferences(businessId);
   const templates = throwOnError(
     await supabase
       .from('notification_templates')
@@ -240,16 +246,24 @@ export async function enqueueNotificationEventsForAppointment(eventType, appoint
     time: appointment?.time ?? null,
   };
 
-  const rows = templates.map((template) => ({
-    business_id: businessId,
-    template_id: template.id,
-    appointment_id: appointmentId,
-    event_type: safeEventType,
-    channel: template.channel,
-    status: 'queued',
-    recipient: pickRecipient(template.channel, appointment),
-    payload,
-  }));
+  const rows = templates
+    .map((template) => {
+      const channel = resolveEffectiveChannel(template.channel, prefs);
+      if (!channel) return null;
+      return {
+        business_id: businessId,
+        template_id: template.id,
+        appointment_id: appointmentId,
+        event_type: safeEventType,
+        channel,
+        status: 'queued',
+        recipient: pickRecipient(channel, appointment),
+        payload,
+      };
+    })
+    .filter(Boolean);
+
+  if (rows.length === 0) return [];
 
   return throwOnError(
     await supabase.from('notification_events').insert(rows).select('*')
@@ -279,6 +293,34 @@ function toSafePositiveInt(value, fallback, max) {
   const n = Number(value);
   if (!Number.isFinite(n) || Math.floor(n) !== n || n <= 0) return fallback;
   return Math.min(n, max);
+}
+
+async function getNotificationPreferences(businessId, supabaseClient = supabase) {
+  const { data, error } = await supabaseClient
+    .from('business_booking_settings')
+    .select('notifications_email_enabled, notifications_sms_enabled, sms_addon_enabled')
+    .eq('business_id', businessId)
+    .maybeSingle();
+  if (error || !data) return { ...DEFAULT_NOTIFICATION_PREFS };
+  return {
+    notifications_email_enabled: data.notifications_email_enabled !== false,
+    notifications_sms_enabled: data.notifications_sms_enabled !== false,
+    sms_addon_enabled: data.sms_addon_enabled === true,
+  };
+}
+
+function resolveEffectiveChannel(channel, prefs) {
+  const emailEnabled = prefs.notifications_email_enabled !== false;
+  const smsEnabled = prefs.notifications_sms_enabled !== false && prefs.sms_addon_enabled === true;
+  if (channel === 'email') return emailEnabled ? 'email' : null;
+  if (channel === 'sms') return smsEnabled ? 'sms' : null;
+  if (channel === 'sms_email') {
+    if (smsEnabled && emailEnabled) return 'sms_email';
+    if (smsEnabled) return 'sms';
+    if (emailEnabled) return 'email';
+    return null;
+  }
+  return null;
 }
 
 /**

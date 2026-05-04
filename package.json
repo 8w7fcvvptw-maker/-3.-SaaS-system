@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server/auth-api.mjs",
+    "bot:start": "node src/bot.js",
     "dev": "concurrently -n api,web -c blue,green \"node server/auth-api.mjs\" \"npm run dev --prefix frontend\"",
     "dev:server": "node server/auth-api.mjs",
     "dev:frontend": "npm run dev --prefix frontend",
@@ -19,10 +20,12 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.2",
+    "better-sqlite3": "^12.9.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "express-rate-limit": "^7.4.0",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"
