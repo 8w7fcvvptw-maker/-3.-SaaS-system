@@ -24,6 +24,30 @@ function inputClass(hasError) {
     : `${base} border-gray-200 dark:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-slate-400/40 focus:border-slate-400`;
 }
 
+function PasswordVisibilityButton({ shown, onClick }) {
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-100 cursor-pointer"
+      onClick={onClick}
+      aria-label={shown ? "Скрыть пароль" : "Показать пароль"}
+    >
+      {shown ? (
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+          <line x1="1" y1="1" x2="23" y2="23" />
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -121,25 +145,7 @@ export function LoginPage() {
                 aria-invalid={!!fieldErrors.password}
                 aria-describedby={fieldErrors.password ? "login-password-err" : undefined}
               />
-              <button
-                type="button"
-                tabIndex={-1}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-100 cursor-pointer"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
-              >
-                {showPassword ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
-              </button>
+              <PasswordVisibilityButton shown={showPassword} onClick={() => setShowPassword((v) => !v)} />
             </div>
             {fieldErrors.password && (
               <p id="login-password-err" className="text-xs text-red-600 dark:text-red-400 mt-1">
@@ -173,6 +179,7 @@ export function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
+  const [showRegisterPasswords, setShowRegisterPasswords] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
@@ -244,18 +251,21 @@ export function RegisterPage() {
             <label htmlFor="reg-password" className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
               Пароль
             </label>
-            <input
-              id="reg-password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: null }));
-              }}
-              className={inputClass(!!fieldErrors.password)}
-              aria-invalid={!!fieldErrors.password}
-            />
+            <div className="relative">
+              <input
+                id="reg-password"
+                type={showRegisterPasswords ? "text" : "password"}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: null }));
+                }}
+                className={`${inputClass(!!fieldErrors.password)} pr-11`}
+                aria-invalid={!!fieldErrors.password}
+              />
+              <PasswordVisibilityButton shown={showRegisterPasswords} onClick={() => setShowRegisterPasswords((v) => !v)} />
+            </div>
             {fieldErrors.password && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">{fieldErrors.password}</p>
             )}
@@ -265,18 +275,21 @@ export function RegisterPage() {
             <label htmlFor="reg-password2" className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
               Повтор пароля
             </label>
-            <input
-              id="reg-password2"
-              type="password"
-              autoComplete="new-password"
-              value={password2}
-              onChange={(e) => {
-                setPassword2(e.target.value);
-                if (fieldErrors.password2) setFieldErrors((f) => ({ ...f, password2: null }));
-              }}
-              className={inputClass(!!fieldErrors.password2)}
-              aria-invalid={!!fieldErrors.password2}
-            />
+            <div className="relative">
+              <input
+                id="reg-password2"
+                type={showRegisterPasswords ? "text" : "password"}
+                autoComplete="new-password"
+                value={password2}
+                onChange={(e) => {
+                  setPassword2(e.target.value);
+                  if (fieldErrors.password2) setFieldErrors((f) => ({ ...f, password2: null }));
+                }}
+                className={`${inputClass(!!fieldErrors.password2)} pr-11`}
+                aria-invalid={!!fieldErrors.password2}
+              />
+              <PasswordVisibilityButton shown={showRegisterPasswords} onClick={() => setShowRegisterPasswords((v) => !v)} />
+            </div>
             {fieldErrors.password2 && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">{fieldErrors.password2}</p>
             )}
