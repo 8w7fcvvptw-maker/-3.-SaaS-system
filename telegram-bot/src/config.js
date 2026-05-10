@@ -11,6 +11,9 @@ function requireEnv(name) {
 }
 
 export const config = {
+  nodeEnv: process.env.NODE_ENV?.trim() || "development",
+  port: Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 3000,
+  webhookUrl: process.env.WEBHOOK_URL?.trim() || null,
   telegramBotToken: requireEnv("TELEGRAM_BOT_TOKEN"),
   supabaseUrl: requireEnv("SUPABASE_URL"),
   supabaseServiceRoleKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),

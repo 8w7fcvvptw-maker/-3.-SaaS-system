@@ -1,4 +1,5 @@
 import { Telegraf } from "telegraf";
+import express from "express";
 import { config } from "./config.js";
 import { MAIN_MENU_ITEMS, mainMenuKeyboard } from "./keyboards.js";
 import { createLeadScene } from "./scenes/leadScene.js";
@@ -101,9 +102,41 @@ if (!isSupabaseAvailable) {
   console.error("[startup] Bot started, but Supabase connectivity check failed.");
 }
 
-bot.launch().then(() => {
-  console.log("[startup] Telegram bot is running.");
-});
+const webhookPath = "/telegram/webhook";
+const shouldUseWebhook = config.nodeEnv === "production" && Boolean(config.webhookUrl);
+
+if (shouldUseWebhook) {
+  const app = express();
+  app.use(express.json());
+
+  app.get("/health", (_req, res) => {
+    res.json({ ok: true });
+  });
+
+  app.post(webhookPath, async (req, res) => {
+    try {
+      await bot.handleUpdate(req.body);
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("[webhook] Failed to process Telegram update:", error);
+      res.sendStatus(500);
+    }
+  });
+
+  const normalizedWebhookUrl = config.webhookUrl.replace(/\/+$/, "");
+  const fullWebhookUrl = `${normalizedWebhookUrl}${webhookPath}`;
+  await bot.telegram.setWebhook(fullWebhookUrl);
+
+  app.listen(config.port, () => {
+    console.log(
+      `[startup] Telegram bot is running in webhook mode on port ${config.port}. Webhook: ${fullWebhookUrl}`,
+    );
+  });
+} else {
+  await bot.telegram.deleteWebhook({ drop_pending_updates: false });
+  await bot.launch();
+  console.log("[startup] Telegram bot is running in long polling mode.");
+}
 
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));

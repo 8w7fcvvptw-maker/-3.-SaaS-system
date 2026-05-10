@@ -31,6 +31,9 @@
 2. Заполните значения:
 
 ```env
+NODE_ENV=development
+PORT=3000
+WEBHOOK_URL=
 TELEGRAM_BOT_TOKEN=your_bot_token
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
@@ -38,6 +41,7 @@ MANAGER_CHAT_ID=123456789
 ```
 
 `MANAGER_CHAT_ID` опционален.
+`WEBHOOK_URL` обязателен только для production webhook-режима.
 
 ## Создание таблиц в Supabase
 
@@ -45,7 +49,7 @@ MANAGER_CHAT_ID=123456789
 2. Выполните SQL из файла `sql/init.sql`.
 3. Убедитесь, что таблицы `business_types`, `tariffs`, `leads` созданы и заполнены начальными данными.
 
-## Локальный запуск
+## Локальный запуск (long polling)
 
 ```bash
 cd telegram-bot
@@ -58,6 +62,8 @@ npm run start
 ```bash
 npm run dev
 ```
+
+Локально бот работает через `bot.launch()` (long polling).
 
 ## Проверка работы
 
@@ -74,7 +80,7 @@ npm run dev
   - ошибки чтения `business_types` / `tariffs`
   - ошибки вставки в `leads`
 
-## Деплой на Render
+## Деплой на Render Free (webhook)
 
 Важно: деплоить нужно именно папку `telegram-bot`, а не корень репозитория.
 
@@ -83,22 +89,34 @@ npm run dev
 3. Build command: `npm install`.
 4. Start command: `npm run start`.
 5. Добавьте environment variables:
+   - `NODE_ENV=production`
+   - `PORT=10000` (или тот порт, который ожидает платформа)
+   - `WEBHOOK_URL=https://<your-render-service>.onrender.com`
    - `TELEGRAM_BOT_TOKEN`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `MANAGER_CHAT_ID` (опционально)
 6. Deploy.
 
-## Деплой на Railway
+После старта бот:
+- поднимает HTTP-сервер (`GET /health`, `POST /telegram/webhook`)
+- устанавливает webhook в Telegram
+- принимает обновления через webhook endpoint.
+
+## Деплой на Koyeb (webhook)
 
 Важно: деплоить нужно именно папку `telegram-bot`, а не корень репозитория.
 
 1. Создайте новый проект из репозитория.
 2. Укажите service root: `telegram-bot`.
-3. Команда запуска: `npm run start`.
-4. Добавьте environment variables:
+3. Build command: `npm install`.
+4. Команда запуска: `npm run start`.
+5. Добавьте environment variables:
+   - `NODE_ENV=production`
+   - `PORT=8000` (или порт, который предоставляет Koyeb)
+   - `WEBHOOK_URL=https://<your-koyeb-domain>`
    - `TELEGRAM_BOT_TOKEN`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `MANAGER_CHAT_ID` (опционально)
-5. Выполните deploy.
+6. Выполните deploy.
