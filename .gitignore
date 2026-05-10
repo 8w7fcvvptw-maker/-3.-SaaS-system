@@ -18,3 +18,8 @@ supabase/.env.functions
 
 # Dependencies (if any added later)
 node_modules/
+
+# Telegram bot local sqlite artifacts
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal

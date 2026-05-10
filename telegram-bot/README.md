@@ -76,6 +76,8 @@ npm run dev
 
 ## Деплой на Render
 
+Важно: деплоить нужно именно папку `telegram-bot`, а не корень репозитория.
+
 1. Создайте новый `Web Service` из репозитория.
 2. Root directory: `telegram-bot`.
 3. Build command: `npm install`.
@@ -88,6 +90,8 @@ npm run dev
 6. Deploy.
 
 ## Деплой на Railway
+
+Важно: деплоить нужно именно папку `telegram-bot`, а не корень репозитория.
 
 1. Создайте новый проект из репозитория.
 2. Укажите service root: `telegram-bot`.
