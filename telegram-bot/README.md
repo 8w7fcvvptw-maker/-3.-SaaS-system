@@ -46,6 +46,7 @@ MANAGER_CHAT_ID=123456789
 `WEBHOOK_URL` обязателен только для production webhook-режима.
 `TELEGRAM_WEBHOOK_SECRET` рекомендуется для production webhook-режима.
 `RESET_WEBHOOK_ON_LOCAL_START=false` защищает production webhook от случайного удаления при локальном запуске.
+`PORT` обязателен: бот всегда слушает порт из `process.env.PORT`.
 
 ## Создание таблиц в Supabase
 
@@ -86,43 +87,38 @@ npm run dev
   - ошибки чтения `business_types` / `tariffs`
   - ошибки вставки в `leads`
 
-## Деплой на Render Free (webhook)
+## Деплой на Koyeb (webhook)
 
 Важно: деплоить нужно именно папку `telegram-bot`, а не корень репозитория.
 
-1. Создайте новый `Web Service` из репозитория.
-2. Root directory: `telegram-bot`.
+1. Создайте новый сервис из Git-репозитория.
+2. В настройках укажите root/service directory: `telegram-bot`.
 3. Build command: `npm install`.
 4. Start command: `npm run start`.
 5. Добавьте environment variables:
    - `NODE_ENV=production`
-   - `PORT=10000` (или тот порт, который ожидает платформа)
-   - `WEBHOOK_URL=https://<your-render-service>.onrender.com`
+   - `PORT` (значение, которое использует Koyeb для web service)
+   - `WEBHOOK_URL=https://<ваш-домен>.koyeb.app`
    - `TELEGRAM_WEBHOOK_SECRET=<strong-random-secret>`
    - `RESET_WEBHOOK_ON_LOCAL_START=false`
    - `TELEGRAM_BOT_TOKEN`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `MANAGER_CHAT_ID` (опционально)
-6. Deploy.
+6. Запустите deploy.
 
-После старта бот:
-- поднимает HTTP-сервер (`GET /health`, `POST /telegram/webhook`)
-- устанавливает webhook в Telegram (с `secret_token`, если задан `TELEGRAM_WEBHOOK_SECRET`)
-- принимает обновления через webhook endpoint.
-
-## Деплой на Koyeb (webhook)
+## Деплой на Railway (webhook)
 
 Важно: деплоить нужно именно папку `telegram-bot`, а не корень репозитория.
 
-1. Создайте новый проект из репозитория.
-2. Укажите service root: `telegram-bot`.
+1. Создайте новый проект из GitHub-репозитория.
+2. Укажите root directory: `telegram-bot`.
 3. Build command: `npm install`.
-4. Команда запуска: `npm run start`.
+4. Start command: `npm run start`.
 5. Добавьте environment variables:
    - `NODE_ENV=production`
-   - `PORT=8000` (или порт, который предоставляет Koyeb)
-   - `WEBHOOK_URL=https://<your-koyeb-domain>`
+   - `PORT` (Railway передает его в `process.env.PORT`)
+   - `WEBHOOK_URL=https://<ваш-домен>.up.railway.app`
    - `TELEGRAM_WEBHOOK_SECRET=<strong-random-secret>`
    - `RESET_WEBHOOK_ON_LOCAL_START=false`
    - `TELEGRAM_BOT_TOKEN`
@@ -130,3 +126,14 @@ npm run dev
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `MANAGER_CHAT_ID` (опционально)
 6. Выполните deploy.
+
+В production режиме (`NODE_ENV=production` + задан `WEBHOOK_URL`) бот:
+- поднимает HTTP-сервер (`GET /health`, `POST /telegram/webhook`)
+- устанавливает webhook в Telegram (с `secret_token`, если задан `TELEGRAM_WEBHOOK_SECRET`)
+- принимает обновления только через webhook endpoint.
+
+## Как проверить после деплоя
+
+1. Откройте `https://<ваш-домен>/health` и убедитесь, что ответ: `{"ok":true}`.
+2. Напишите `/start` вашему Telegram-боту и проверьте, что он отвечает меню.
+3. Отправьте тестовую заявку и проверьте таблицу `leads` в Supabase.

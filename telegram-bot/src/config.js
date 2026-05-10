@@ -10,9 +10,18 @@ function requireEnv(name) {
   return value;
 }
 
+function requirePort(name) {
+  const value = requireEnv(name);
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`[config] Environment variable ${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
 export const config = {
   nodeEnv: process.env.NODE_ENV?.trim() || "development",
-  port: Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 3000,
+  port: requirePort("PORT"),
   webhookUrl: process.env.WEBHOOK_URL?.trim() || null,
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET?.trim() || null,
   resetWebhookOnLocalStart: process.env.RESET_WEBHOOK_ON_LOCAL_START?.trim() === "true",
