@@ -114,6 +114,14 @@ if (shouldUseWebhook) {
   });
 
   app.post(webhookPath, async (req, res) => {
+    if (config.telegramWebhookSecret) {
+      const secretHeader = req.header("x-telegram-bot-api-secret-token");
+      if (secretHeader !== config.telegramWebhookSecret) {
+        res.sendStatus(403);
+        return;
+      }
+    }
+
     try {
       await bot.handleUpdate(req.body);
       res.sendStatus(200);
@@ -125,7 +133,9 @@ if (shouldUseWebhook) {
 
   const normalizedWebhookUrl = config.webhookUrl.replace(/\/+$/, "");
   const fullWebhookUrl = `${normalizedWebhookUrl}${webhookPath}`;
-  await bot.telegram.setWebhook(fullWebhookUrl);
+  await bot.telegram.setWebhook(fullWebhookUrl, {
+    secret_token: config.telegramWebhookSecret || undefined,
+  });
 
   app.listen(config.port, () => {
     console.log(
@@ -133,7 +143,10 @@ if (shouldUseWebhook) {
     );
   });
 } else {
-  await bot.telegram.deleteWebhook({ drop_pending_updates: false });
+  if (config.resetWebhookOnLocalStart) {
+    await bot.telegram.deleteWebhook({ drop_pending_updates: false });
+    console.log("[startup] Existing Telegram webhook was removed for local start.");
+  }
   await bot.launch();
   console.log("[startup] Telegram bot is running in long polling mode.");
 }

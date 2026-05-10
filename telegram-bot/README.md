@@ -34,6 +34,8 @@
 NODE_ENV=development
 PORT=3000
 WEBHOOK_URL=
+TELEGRAM_WEBHOOK_SECRET=
+RESET_WEBHOOK_ON_LOCAL_START=false
 TELEGRAM_BOT_TOKEN=your_bot_token
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
@@ -42,6 +44,8 @@ MANAGER_CHAT_ID=123456789
 
 `MANAGER_CHAT_ID` опционален.
 `WEBHOOK_URL` обязателен только для production webhook-режима.
+`TELEGRAM_WEBHOOK_SECRET` рекомендуется для production webhook-режима.
+`RESET_WEBHOOK_ON_LOCAL_START=false` защищает production webhook от случайного удаления при локальном запуске.
 
 ## Создание таблиц в Supabase
 
@@ -64,6 +68,8 @@ npm run dev
 ```
 
 Локально бот работает через `bot.launch()` (long polling).
+По умолчанию локальный запуск не удаляет существующий webhook в Telegram.
+Важно: не запускайте локально тот же `TELEGRAM_BOT_TOKEN`, что используется в production, без понимания последствий — это может перехватить обновления или сбить боевой webhook при неверной конфигурации.
 
 ## Проверка работы
 
@@ -92,6 +98,8 @@ npm run dev
    - `NODE_ENV=production`
    - `PORT=10000` (или тот порт, который ожидает платформа)
    - `WEBHOOK_URL=https://<your-render-service>.onrender.com`
+   - `TELEGRAM_WEBHOOK_SECRET=<strong-random-secret>`
+   - `RESET_WEBHOOK_ON_LOCAL_START=false`
    - `TELEGRAM_BOT_TOKEN`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
@@ -100,7 +108,7 @@ npm run dev
 
 После старта бот:
 - поднимает HTTP-сервер (`GET /health`, `POST /telegram/webhook`)
-- устанавливает webhook в Telegram
+- устанавливает webhook в Telegram (с `secret_token`, если задан `TELEGRAM_WEBHOOK_SECRET`)
 - принимает обновления через webhook endpoint.
 
 ## Деплой на Koyeb (webhook)
@@ -115,6 +123,8 @@ npm run dev
    - `NODE_ENV=production`
    - `PORT=8000` (или порт, который предоставляет Koyeb)
    - `WEBHOOK_URL=https://<your-koyeb-domain>`
+   - `TELEGRAM_WEBHOOK_SECRET=<strong-random-secret>`
+   - `RESET_WEBHOOK_ON_LOCAL_START=false`
    - `TELEGRAM_BOT_TOKEN`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
