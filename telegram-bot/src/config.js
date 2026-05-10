@@ -29,4 +29,6 @@ export const config = {
   supabaseUrl: requireEnv("SUPABASE_URL"),
   supabaseServiceRoleKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
   managerChatId: process.env.MANAGER_CHAT_ID?.trim() || null,
+  /** Опционально: без ключа бот не падает, в сценарии «Задать вопрос» показывается шаблонный ответ */
+  openaiApiKey: process.env.OPENAI_API_KEY?.trim() || null,
 };

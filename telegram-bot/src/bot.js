@@ -7,8 +7,20 @@ import { getBusinessTypes } from "./repositories/businessTypesRepository.js";
 import { getTariffs } from "./repositories/tariffsRepository.js";
 import { createLead } from "./repositories/leadsRepository.js";
 import { checkSupabaseConnection } from "./supabaseClient.js";
+import { answerUserQuestion } from "./llm/aiAnswerService.js";
 
 const bot = new Telegraf(config.telegramBotToken);
+
+/** Пользователи, нажавшие «Задать вопрос» и ожидающие текст вопроса (LLM не используется в сценарии заявки). */
+const questionModeUserIds = new Set();
+
+function clearQuestionMode(userId) {
+  questionModeUserIds.delete(userId);
+}
+
+function enableQuestionMode(userId) {
+  questionModeUserIds.add(userId);
+}
 const leadScene = createLeadScene({
   getBusinessTypes,
   getTariffs,
@@ -55,7 +67,9 @@ async function showMainMenu(ctx) {
 }
 
 bot.start(async (ctx) => {
-  leadScene.resetState(String(ctx.from.id));
+  const userId = String(ctx.from.id);
+  clearQuestionMode(userId);
+  leadScene.resetState(userId);
   await ctx.reply(
     "Привет! Я помогу оставить заявку на подключение SaaS-системы.",
     mainMenuKeyboard(),
@@ -63,34 +77,51 @@ bot.start(async (ctx) => {
 });
 
 bot.hears(MAIN_MENU_ITEMS.leaveLead, async (ctx) => {
+  clearQuestionMode(String(ctx.from.id));
   await leadScene.start(ctx);
 });
 
 bot.hears(MAIN_MENU_ITEMS.viewTariffs, async (ctx) => {
+  clearQuestionMode(String(ctx.from.id));
   const tariffs = await getTariffs();
   await ctx.reply(formatTariffsMessage(tariffs), mainMenuKeyboard());
 });
 
 bot.hears(MAIN_MENU_ITEMS.askQuestion, async (ctx) => {
+  const userId = String(ctx.from.id);
+  enableQuestionMode(userId);
   await ctx.reply(
-    "Пока AI-консультант не подключен. Оставьте заявку, и менеджер свяжется с вами для консультации.",
+    "Напишите ваш вопрос одним сообщением — ответит AI-консультант. Для других действий используйте кнопки меню ниже.",
     mainMenuKeyboard(),
   );
 });
 
 bot.on("text", async (ctx) => {
+  const userId = String(ctx.from.id);
   const input = ctx.message.text.trim();
+
   const result = await leadScene.handleInput(ctx, input);
-  if (!result) {
-    await ctx.reply("Выберите действие из главного меню.", mainMenuKeyboard());
+  if (result) {
+    clearQuestionMode(userId);
+    if (typeof result === "object" && result.lead) {
+      await notifyManagerAboutLead(ctx, result.lead);
+      leadScene.resetState(userId);
+      await showMainMenu(ctx);
+    }
     return;
   }
 
-  if (typeof result === "object" && result.lead) {
-    await notifyManagerAboutLead(ctx, result.lead);
-    leadScene.resetState(String(ctx.from.id));
-    await showMainMenu(ctx);
+  if (questionModeUserIds.has(userId)) {
+    await ctx.sendChatAction("typing");
+    const replyText = await answerUserQuestion({
+      openaiApiKey: config.openaiApiKey,
+      userMessage: input,
+    });
+    await ctx.reply(replyText, mainMenuKeyboard());
+    return;
   }
+
+  await ctx.reply("Выберите действие из главного меню.", mainMenuKeyboard());
 });
 
 bot.catch((error) => {

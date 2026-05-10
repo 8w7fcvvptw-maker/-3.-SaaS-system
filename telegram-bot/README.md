@@ -17,7 +17,7 @@
   - пользователю отправляется подтверждение
   - менеджеру отправляется уведомление, если заполнен `MANAGER_CHAT_ID`
 - `Посмотреть тарифы` показывает тарифы из Supabase.
-- `Задать вопрос` отвечает шаблонно (LLM пока не подключен).
+- `Задать вопрос` включает режим вопроса: следующее текстовое сообщение отправляется в OpenAI (`gpt-4o-mini`). Без `OPENAI_API_KEY` бот отвечает шаблоном и не падает.
 
 ## Требования
 
@@ -40,9 +40,11 @@ TELEGRAM_BOT_TOKEN=your_bot_token
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 MANAGER_CHAT_ID=123456789
+OPENAI_API_KEY=
 ```
 
 `MANAGER_CHAT_ID` опционален.
+`OPENAI_API_KEY` опционален: если не задан, в сценарии «Задать вопрос» пользователь увидит шаблонное сообщение вместо ответа AI.
 `WEBHOOK_URL` обязателен только для production webhook-режима.
 `TELEGRAM_WEBHOOK_SECRET` рекомендуется для production webhook-режима.
 `RESET_WEBHOOK_ON_LOCAL_START=false` защищает production webhook от случайного удаления при локальном запуске.
@@ -79,6 +81,7 @@ npm run dev
 3. Подтвердите заявку.
 4. Проверьте в Supabase Dashboard -> Table Editor -> `leads`, что появилась новая строка.
 5. Если заполнен `MANAGER_CHAT_ID`, проверьте сообщение в чате менеджера.
+6. Проверьте «Задать вопрос»: нажмите кнопку, затем отправьте тестовый вопрос. С `OPENAI_API_KEY` должен прийти краткий ответ; без ключа — шаблон «AI временно недоступен».
 
 ## Обработка ошибок
 
@@ -125,7 +128,17 @@ npm run dev
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `MANAGER_CHAT_ID` (опционально)
+   - `OPENAI_API_KEY` (опционально; ответы AI в сценарии «Задать вопрос»)
 6. Выполните deploy.
+
+### Как добавить OPENAI_API_KEY на Railway
+
+1. Откройте проект на [Railway](https://railway.app/) → сервис с ботом (root directory `telegram-bot`).
+2. Перейдите в **Variables** (переменные окружения).
+3. Добавьте новую переменную: имя `OPENAI_API_KEY`, значение — секретный ключ из [OpenAI API keys](https://platform.openai.com/api-keys) (начинается с `sk-...`).
+4. Сохраните изменения и дождитесь автоматического redeploy (или запустите deploy вручную).
+
+Без этой переменной бот продолжит работать: в «Задать вопрос» будет шаблонный текст вместо AI. Webhook и остальные функции не затрагиваются.
 
 В production режиме (`NODE_ENV=production` + задан `WEBHOOK_URL`) бот:
 - поднимает HTTP-сервер (`GET /health`, `POST /telegram/webhook`)
@@ -137,3 +150,4 @@ npm run dev
 1. Откройте `https://<ваш-домен>/health` и убедитесь, что ответ: `{"ok":true}`.
 2. Напишите `/start` вашему Telegram-боту и проверьте, что он отвечает меню.
 3. Отправьте тестовую заявку и проверьте таблицу `leads` в Supabase.
+4. Нажмите «Задать вопрос», отправьте короткий вопрос: с `OPENAI_API_KEY` должен прийти ответ AI; при ошибке API или без ключа — понятный запасной текст.
