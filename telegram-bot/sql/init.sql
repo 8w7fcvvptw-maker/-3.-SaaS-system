@@ -52,7 +52,7 @@ set title = name
 where title is null and name is not null;
 
 insert into public.business_types (name, title)
-select seed.value, seed.value
+select seed.name, seed.name
 from (
   values
     ('Онлайн-школа'),
@@ -64,7 +64,7 @@ from (
 where not exists (
   select 1
   from public.business_types bt
-  where coalesce(bt.name, bt.title) = seed.value
+  where coalesce(bt.name, bt.title) = seed.name
 );
 
 insert into public.tariffs (name, title, description)
