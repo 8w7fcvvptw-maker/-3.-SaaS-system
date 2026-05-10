@@ -47,6 +47,7 @@ export function BookingProvider({ children, business = null, slug = "" }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useBooking() {
   const ctx = useContext(BookingContext);
   if (!ctx) throw new Error("useBooking must be used within BookingProvider");

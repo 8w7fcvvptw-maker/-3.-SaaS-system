@@ -3,11 +3,13 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { getMyProfile, redirectToPayment, PLAN_LIMITS } from '../lib/subscription.js';
 
 /**
- * SubscriptionGuard — обёртка для business-маршрутов.
+ * SubscriptionGuard — обёртка для owner-маршрутов.
  *
- * Если роль === 'admin'   → всегда пропускает
- * Если роль === 'client'  → пропускает (клиенты не управляют бизнесом)
- * Если роль === 'business' и нет активной подписки → показывает paywall
+ * Пропускает:
+ * - super-admin;
+ * - пользователей без owner-контура;
+ * - owner без бизнеса (onboarding обрабатывается в RequireBusiness).
+ * Показывает paywall только для owner с бизнесом без entitlement.
  */
 export default function SubscriptionGuard({ children, fallback }) {
   const { user, loading: authLoading } = useAuth();
@@ -39,16 +41,26 @@ export default function SubscriptionGuard({ children, fallback }) {
   if (!user) return fallback ?? null;
 
   const { profile } = state;
+  if (!profile && state.error) {
+    return (
+      <div className="min-h-[240px] flex items-center justify-center px-6">
+        <div className="max-w-md w-full rounded-lg border border-red-400/40 bg-red-900/20 text-red-200 text-sm px-4 py-3">
+          Не удалось проверить доступ по подписке. Обновите страницу и попробуйте снова.
+        </div>
+      </div>
+    );
+  }
 
-  // Проверяем только business-роль
-  if (profile?.role === 'business' && !profile?.hasActiveSubscription) {
+  if (!profile) return fallback ?? null;
+
+  if (profile?.access?.requiresPaywall) {
     return <SubscriptionPaywall profile={profile} />;
   }
 
   return children;
 }
 
-function SubscriptionPaywall({ profile }) {
+function SubscriptionPaywall() {
   const [paying, setPaying] = useState(null);
   const [error, setError] = useState(null);
 

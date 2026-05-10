@@ -4,7 +4,7 @@ import { requireSession } from './auth.js';
 import { getOwnerBusinessId } from './business.js';
 import { ApiError } from './errors.js';
 import { requireRowInBusiness } from './access.js';
-import { checkServicesQuota, getUserRole, requireActiveSubscription } from './subscriptions.js';
+import { checkServicesQuota, requireActiveSubscription } from './subscriptions.js';
 import {
   assertId,
   assertNonEmptyString,
@@ -66,7 +66,7 @@ export async function getActiveServices(businessId) {
 export async function getServiceById(id) {
   await requireSession();
   assertId(id, 'id');
-  const bid = await getOwnerBusinessId();
+  const bid = await getOwnerBusinessId({ requireSubscription: false });
   return throwOnError(
     await supabase.from('services').select('*').eq('id', id).eq('business_id', bid).single()
   );
@@ -74,12 +74,9 @@ export async function getServiceById(id) {
 
 export async function updateService(id, updates) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
+  await requireActiveSubscription(session.user.id);
   assertId(id, 'id');
-  const bid = await getOwnerBusinessId();
+  const bid = await getOwnerBusinessId({ requireSubscription: false });
   await requireRowInBusiness('services', id, bid, 'Услуга');
 
   const safe = {};
@@ -100,11 +97,8 @@ export async function updateService(id, updates) {
 
 export async function createService(data) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
-  const bid = await getOwnerBusinessId();
+  await requireActiveSubscription(session.user.id);
+  const bid = await getOwnerBusinessId({ requireSubscription: false });
   await checkServicesQuota(bid);
   if (data?.business_id != null && Number(data.business_id) !== bid) {
     throw new ApiError('Нельзя создавать услугу для чужого салона', {
@@ -130,10 +124,7 @@ export async function createService(data) {
 
 export async function deleteService(id) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
+  await requireActiveSubscription(session.user.id);
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('services', id, bid, 'Услуга');

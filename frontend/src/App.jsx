@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { trackPageView } from "./lib/monitoring.js";
 
 import { AuthApiBridge } from "./components/AuthApiBridge.jsx";
+import { RequireAdmin } from "./components/RequireAdmin.jsx";
 
 // Страницы записи (публичная зона)
 import {
@@ -22,6 +23,7 @@ import {
 import BookingFlowLayout from "./layouts/BookingFlowLayout.jsx";
 
 import DashboardShell from "./layouts/DashboardShell.jsx";
+import AdminLayout from "./layouts/AdminLayout.jsx";
 
 import {
   Dashboard,
@@ -43,6 +45,7 @@ import {
 } from "./pages/dashboard/DashboardPages";
 
 import { LoginPage, RegisterPage, OnboardingPage } from "./pages/auth/AuthPages.jsx";
+import { AdminDashboard, AdminBusinesses, AdminPlans } from "./pages/admin/AdminPages.jsx";
 
 function MetrikaRouteTracker() {
   const location = useLocation();
@@ -203,8 +206,37 @@ export default function App() {
           }
         />
 
-        <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/admin/*" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/admin"
+          element={
+            <RequireAdmin>
+              <AdminLayout>
+                <AdminDashboard />
+              </AdminLayout>
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/businesses"
+          element={
+            <RequireAdmin>
+              <AdminLayout>
+                <AdminBusinesses />
+              </AdminLayout>
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/plans"
+          element={
+            <RequireAdmin>
+              <AdminLayout>
+                <AdminPlans />
+              </AdminLayout>
+            </RequireAdmin>
+          }
+        />
+        <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

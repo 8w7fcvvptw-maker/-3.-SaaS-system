@@ -86,6 +86,7 @@ function buildBookingIcs({ date, time, serviceName, staffName, businessName, add
 export function BookingLanding() {
   const navigate = useNavigate();
   const { business, businessId, slug } = useBooking();
+  const bookingEnabled = business?.online_booking_enabled !== false && business?.booking_settings?.online_booking_enabled !== false;
 
   const { data: services, loading: svcLoading } = useAsync(
     () => getActiveServices(businessId),
@@ -161,7 +162,20 @@ export function BookingLanding() {
           </div>
         </div>
 
-        <Button size="lg" className="w-full justify-center" onClick={() => navigate(`/book/${slug}/services`)}>
+        {!bookingEnabled && (
+          <Card className="p-4 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700">
+            <div className="text-sm text-amber-800 dark:text-amber-200">
+              Онлайн-запись временно отключена владельцем салона. Позвоните по телефону, чтобы записаться вручную.
+            </div>
+          </Card>
+        )}
+
+        <Button
+          size="lg"
+          className="w-full justify-center"
+          disabled={!bookingEnabled}
+          onClick={() => navigate(`/book/${slug}/services`)}
+        >
           Записаться
           <Icon name="chevronRight" className="w-4 h-4" />
         </Button>
@@ -315,9 +329,15 @@ export function DateTimeSelection() {
 
   const { data: slots, loading: slotsLoading, error: slotsError } = useAsync(() => getTimeSlots());
   const { data: busy, loading: busyLoading, error: busyError } = useAsync(
-    () => getBusySlots(selectedDateIso, booking.staff?.id, businessId, slug),
+    () => getBusySlots(
+      selectedDateIso,
+      booking.staff?.id,
+      businessId,
+      slug,
+      { serviceId: booking.service?.id ?? null, duration: booking.service?.duration ?? 30 }
+    ),
     true,
-    [selectedDateIso, booking.staff?.id, businessId, slug]
+    [selectedDateIso, booking.staff?.id, businessId, slug, booking.service?.id, booking.service?.duration]
   );
 
   const loading = slotsLoading || busyLoading;

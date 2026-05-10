@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { signOut } from "../lib/api.js";
 import { SAAS_API_FORBIDDEN, SAAS_API_UNAUTHORIZED } from "../lib/saasEvents.js";
+import { supabase } from "../lib/supabase.js";
 
 /**
  * 401 → signOut и редирект на /login (если не на страницах входа).
@@ -17,6 +18,13 @@ export function AuthApiBridge() {
     const on401 = async () => {
       if (handling401.current) return;
       handling401.current = true;
+      // Если сессия реально существует, не выкидываем пользователя из кабинета:
+      // отдельный запрос мог дать ложный/временный 401 сразу после signIn.
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (!userErr && userData?.user?.id) {
+        handling401.current = false;
+        return;
+      }
       try {
         await signOut();
       } catch {

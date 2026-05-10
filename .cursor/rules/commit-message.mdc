@@ -1,0 +1,30 @@
+---
+alwaysApply: true
+---
+---
+description: Commit message suggestion at the end of every task
+alwaysApply: true
+---
+
+At the end of every completed project-related task, always provide exactly one suggested git commit message.
+
+Use Conventional Commits format.
+
+Examples:
+- `feat: add authentication flow`
+- `fix: resolve navbar overflow on mobile`
+- `refactor: simplify user service logic`
+- `style: update dashboard layout`
+- `docs: update setup instructions`
+- `chore: update dependencies`
+
+The commit message must:
+- Be in English
+- Be concise
+- Describe the actual changes made
+- Not end with a period
+
+Always place it at the very end of the response in this format:
+
+Commit message:
+`type: short description`

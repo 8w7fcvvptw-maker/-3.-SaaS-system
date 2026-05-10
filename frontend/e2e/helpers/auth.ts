@@ -1,9 +1,21 @@
 import type { Page } from "@playwright/test";
 import { getE2eLoginEmail, getE2eLoginPassword } from "./e2e-session";
 
+function isAppShellPath(url: URL) {
+  const p = url.pathname;
+  return (
+    p === "/dashboard" ||
+    p.startsWith("/dashboard/") ||
+    p === "/onboarding" ||
+    p.startsWith("/onboarding/") ||
+    p === "/admin" ||
+    p.startsWith("/admin/")
+  );
+}
+
 /** Дождаться заголовка «Дашборд»; при ошибке getBusiness — нажать «Повторить» (медленный Supabase / флейки). */
 async function waitForDashboardHeading(page: Page) {
-  const heading = page.getByRole("heading", { name: "Дашборд" });
+  const heading = page.locator("h1").filter({ hasText: "Дашборд" });
   const retryBtn = page.getByRole("button", { name: "Повторить" });
   const perAttemptMs = 55_000;
   const maxRounds = 4;
@@ -32,14 +44,14 @@ export async function loginAsOwner(page: Page) {
   const email = getE2eLoginEmail();
   const password = getE2eLoginPassword();
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Пароль").fill(password);
-  await page.getByRole("button", { name: "Войти" }).click();
+  await page.locator("#login-email").fill(email);
+  await page.locator("#login-password").fill(password);
   try {
-    await page.waitForURL(/\/(dashboard|onboarding)/, {
-      timeout: 90_000,
-      waitUntil: "commit",
-    });
+    await Promise.all([
+      // Нельзя матчить `onboarding` подстрокой в `/login` — в слове `login` встречается `onboarding`.
+      page.waitForURL((url) => isAppShellPath(url), { timeout: 90_000, waitUntil: "commit" }),
+      page.getByRole("button", { name: "Войти" }).click(),
+    ]);
   } catch {
     if (page.url().includes("/login")) {
       const alert = page.getByRole("alert");
@@ -50,7 +62,11 @@ export async function loginAsOwner(page: Page) {
         `После «Войти» остались на /login. Проверьте E2E_LOGIN_EMAIL и E2E_LOGIN_PASSWORD в frontend/.env. ${hint ? `Сообщение: ${hint}` : ""}`,
       );
     }
-    throw new Error("Ожидался переход на /dashboard или /onboarding после входа.");
+    throw new Error("Ожидался переход на /dashboard, /onboarding или /admin после входа.");
+  }
+
+  if (page.url().includes("/admin")) {
+    return;
   }
 
   if (page.url().includes("/onboarding")) {

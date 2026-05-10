@@ -41,6 +41,20 @@ export default function BookingFlowLayout() {
     );
   }
 
+  const bookingEnabled =
+    business?.online_booking_enabled !== false &&
+    business?.booking_settings?.online_booking_enabled !== false;
+  if (!bookingEnabled) {
+    return (
+      <BookingLayout>
+        <ErrorState message="Онлайн-запись временно отключена владельцем бизнеса." />
+        <p className="text-center mt-4 text-sm text-gray-500 dark:text-zinc-400">
+          Позвоните в салон для записи вручную.
+        </p>
+      </BookingLayout>
+    );
+  }
+
   return (
     <BookingProvider business={business} slug={slug}>
       <Outlet />

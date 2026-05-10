@@ -4,7 +4,7 @@ import { requireSession } from './auth.js';
 import { getOwnerBusinessId } from './business.js';
 import { ApiError } from './errors.js';
 import { requireRowInBusiness, requireServiceInBusiness, requireStaffInBusiness, requireClientInBusiness } from './access.js';
-import { checkAppointmentQuota, getUserRole, requireActiveSubscription } from './subscriptions.js';
+import { checkAppointmentQuota, requireActiveSubscription } from './subscriptions.js';
 import {
   assertId,
   assertDateIso,
@@ -123,7 +123,7 @@ function mapAppointmentRows(data) {
 }
 
 async function scopedQuery(build) {
-  const bid = await getOwnerBusinessId();
+  const bid = await getOwnerBusinessId({ requireSubscription: false });
   return build(bid);
 }
 
@@ -149,7 +149,7 @@ export async function getAppointmentsByDate(date) {
 export async function getAppointmentById(id) {
   await requireSession();
   assertId(id, 'id');
-  const bid = await getOwnerBusinessId();
+  const bid = await getOwnerBusinessId({ requireSubscription: false });
   const res = await withRelFallback((sel) =>
     supabase.from('appointments').select(sel).eq('id', id).eq('business_id', bid).single()
   );
@@ -219,10 +219,7 @@ export async function getAppointmentsForClient(clientId, clientName) {
 
 export async function updateAppointmentStatus(id, status) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
+  await requireActiveSubscription(session.user.id);
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('appointments', id, bid, 'Запись');
@@ -249,10 +246,7 @@ export async function updateAppointmentStatus(id, status) {
 
 export async function updateAppointment(id, updates) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
+  await requireActiveSubscription(session.user.id);
   assertId(id, 'id');
   const bid = await getOwnerBusinessId();
   await requireRowInBusiness('appointments', id, bid, 'Запись');
@@ -287,7 +281,18 @@ export async function updateAppointment(id, updates) {
   const res = await withRelFallback((sel) =>
     supabase.from('appointments').update(safe).eq('id', id).eq('business_id', bid).select(sel).single()
   );
-  return mapAppointmentRow(throwOnError(res));
+  try {
+    return mapAppointmentRow(throwOnError(res));
+  } catch (error) {
+    const msg = String(error?.message ?? '');
+    if (msg.includes('appointment_conflict')) {
+      throw new ApiError('Слот занят с учетом буфера между записями.', {
+        code: 'booking_conflict',
+        status: 409,
+      });
+    }
+    throw error;
+  }
 }
 
 const APPOINTMENT_INSERT_COLS = [
@@ -313,11 +318,8 @@ function pickNotes(value) {
 
 export async function createAppointment(data) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
-  const ownerBid = await getOwnerBusinessId();
+  await requireActiveSubscription(session.user.id);
+  const ownerBid = await getOwnerBusinessId({ requireSubscription: false });
   await checkAppointmentQuota(ownerBid);
 
   const insertData = {};
@@ -386,7 +388,19 @@ export async function createAppointment(data) {
   const res = await withRelFallback((sel) =>
     supabase.from('appointments').insert(insertData).select(sel).single()
   );
-  const created = mapAppointmentRow(throwOnError(res));
+  let created;
+  try {
+    created = mapAppointmentRow(throwOnError(res));
+  } catch (error) {
+    const msg = String(error?.message ?? '');
+    if (msg.includes('appointment_conflict')) {
+      throw new ApiError('Слот занят с учетом буфера между записями.', {
+        code: 'booking_conflict',
+        status: 409,
+      });
+    }
+    throw error;
+  }
   try {
     await enqueueNotificationEventsForAppointment('appointment_created', created);
   } catch (error) {
@@ -429,7 +443,21 @@ export async function createPublicAppointment(payload) {
   });
 
   if (error) {
-    throw new ApiError(error.message || 'Не удалось создать запись', {
+    const msg = String(error.message || 'Не удалось создать запись');
+    const lower = msg.toLowerCase();
+    if (lower.includes('booking_disabled')) {
+      throw new ApiError('Онлайн-запись для этого салона отключена.', {
+        code: 'booking_disabled',
+        status: 403,
+      });
+    }
+    if (lower.includes('booking_conflict') || lower.includes('appointment_conflict')) {
+      throw new ApiError('Выбранный слот уже занят. Выберите другое время.', {
+        code: 'booking_conflict',
+        status: 409,
+      });
+    }
+    throw new ApiError(msg, {
       code: 'validation_error',
       status: 400,
     });
@@ -450,12 +478,9 @@ function normalizeStatusForDeleteRule(status) {
 
 export async function deleteAppointment(id) {
   const session = await requireSession();
-  const role = await getUserRole(session.user.id);
-  if (role === 'business') {
-    await requireActiveSubscription(session.user.id);
-  }
+  await requireActiveSubscription(session.user.id);
   assertId(id, 'id');
-  const bid = await getOwnerBusinessId();
+  const bid = await getOwnerBusinessId({ requireSubscription: false });
   await requireRowInBusiness('appointments', id, bid, 'Запись');
 
   const { data: row, error } = await supabase

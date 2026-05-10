@@ -21,11 +21,27 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
       const { email, password } = requireE2eCredentials();
 
       await page.goto("/login");
-      await page.getByLabel("Email").fill(email);
-      await page.getByLabel("Пароль").fill(password);
-      await page.getByRole("button", { name: "Войти" }).click();
-
-      await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 45_000, waitUntil: "commit" });
+      await page.locator("#login-email").fill(email);
+      await page.locator("#login-password").fill(password);
+      await Promise.all([
+        // Важно: `onboarding` нельзя искать “внутри /login” — в слове `login` есть подстрока `onboarding`
+        // и старый regex завершал ожидание мгновенно, не дожидаясь навигации.
+        page.waitForURL(
+          (url) => {
+            const p = url.pathname || "";
+            return (
+              p === "/dashboard" ||
+              p.startsWith("/dashboard/") ||
+              p === "/onboarding" ||
+              p.startsWith("/onboarding/") ||
+              p === "/admin" ||
+              p.startsWith("/admin/")
+            );
+          },
+          { timeout: 90_000, waitUntil: "commit" },
+        ),
+        page.getByRole("button", { name: "Войти" }).click(),
+      ]);
 
       if (page.url().includes("/onboarding")) {
         await expect(page.getByRole("heading", { name: "Ваш салон" })).toBeVisible({ timeout: 45_000 });
@@ -34,7 +50,7 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
         await page.waitForURL(/\/dashboard\/?$/, { timeout: 45_000, waitUntil: "commit" });
       }
 
-      await expect(page.getByRole("heading", { name: "Дашборд" })).toBeVisible({ timeout: 45_000 });
+      await expect(page.locator("h1").filter({ hasText: "Дашборд" })).toBeVisible({ timeout: 45_000 });
       setE2eRegisteredEmail(email, password);
     });
   });
@@ -47,8 +63,8 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
 
     test("неверный пароль — ошибка, вход не выполнен", async ({ page }) => {
       await page.goto("/login");
-      await page.getByLabel("Email").fill(getE2eLoginEmail());
-      await page.getByLabel("Пароль").fill("совсем_не_тот_пароль_12345");
+      await page.locator("#login-email").fill(getE2eLoginEmail());
+      await page.locator("#login-password").fill("совсем_не_тот_пароль_12345");
       await page.getByRole("button", { name: "Войти" }).click();
 
       await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 });
@@ -75,7 +91,9 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
       const phone = uniquePhone();
 
       await loginAsOwner(page);
-      await page.goto("/clients/new");
+      await page.getByRole("link", { name: "Клиенты" }).click();
+      await page.getByRole("button", { name: "+ Добавить клиента" }).click();
+      await page.waitForURL(/\/clients\/new$/, { timeout: 45_000, waitUntil: "commit" });
 
       await page.getByLabel(/^Имя/).fill(name);
       await page.getByLabel(/^Телефон/).fill(phone);
@@ -95,7 +113,9 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
       const note = `Заметка ${Date.now()}`;
 
       await loginAsOwner(page);
-      await page.goto("/clients/new");
+      await page.getByRole("link", { name: "Клиенты" }).click();
+      await page.getByRole("button", { name: "+ Добавить клиента" }).click();
+      await page.waitForURL(/\/clients\/new$/, { timeout: 45_000, waitUntil: "commit" });
       await page.getByLabel(/^Имя/).fill(name);
       await page.getByLabel(/^Телефон/).fill(uniquePhone());
       await page.getByRole("button", { name: "Сохранить" }).click();
@@ -112,10 +132,12 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
       await notesArea.blur();
 
       await expect(page.getByText("Сохранение...")).toBeHidden({ timeout: 15_000 });
-      await page.reload();
+      await page.goto("/clients");
+      await page.getByText(name, { exact: true }).click();
+      await page.waitForURL(/\/clients\/[^/]+$/, { timeout: 45_000, waitUntil: "commit" });
       await expect(
         page.getByRole("heading", { name: "Заметки" }).locator("..").locator("textarea").first()
-      ).toHaveValue(note);
+      ).toHaveValue(note, { timeout: 45_000 });
     });
   });
 
@@ -124,7 +146,9 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
       const serviceName = `E2E Услуга ${Date.now()}`;
 
       await loginAsOwner(page);
-      await page.goto("/services/new");
+      await page.getByRole("link", { name: "Услуги" }).click();
+      await page.getByRole("button", { name: "+ Добавить услугу" }).click();
+      await page.waitForURL(/\/services\/new$/, { timeout: 45_000, waitUntil: "commit" });
 
       await page.getByLabel(/^Название/).fill(serviceName);
       await page.getByLabel(/^Описание/).fill("Описание для E2E");
@@ -143,7 +167,7 @@ test.describe.serial("SaaS E2E — сценарии по порядку", () => 
         .locator("xpath=ancestor::div[contains(@class,'hover:shadow-md')]")
         .first();
       page.once("dialog", (d) => d.accept());
-      await serviceCard.getByRole("button", { name: "🗑" }).first().click();
+      await serviceCard.getByRole("button", { name: "Удалить", exact: true }).first().click();
 
       await expect(page.getByText(serviceName, { exact: true })).toBeHidden({ timeout: 20_000 });
     });

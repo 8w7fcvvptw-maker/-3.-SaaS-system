@@ -43,6 +43,11 @@ export default defineConfig({
     env: {
       ...process.env,
       SKIP_AUTH_RATE_LIMIT: "1",
+      /**
+       * E2E поднимает только Vite; HTTP auth-api на 3001 не гарантирован.
+       * Иначе /api/auth/* может «висеть» из-за proxy target без upstream.
+       */
+      VITE_USE_AUTH_API: "false",
     },
   },
 });
