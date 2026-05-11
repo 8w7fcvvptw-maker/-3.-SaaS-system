@@ -9,14 +9,16 @@ export const AI_ANSWER_MESSAGES = {
 };
 
 /**
- * В LLM передаётся только текст вопроса пользователя — без токенов, ключей и конфигурации окружения.
+ * В LLM передаются system, история диалога (только user/assistant) и новое сообщение пользователя.
+ * Ключи и секреты окружения в модель не передаются.
  *
  * @param {object} params
  * @param {string | null | undefined} params.openaiApiKey
  * @param {string} params.userMessage
+ * @param {Array<{ role: 'user' | 'assistant'; content: string }>} [params.historyMessages]
  * @returns {Promise<string>}
  */
-export async function answerUserQuestion({ openaiApiKey, userMessage }) {
+export async function answerUserQuestion({ openaiApiKey, userMessage, historyMessages = [] }) {
   const trimmedQuestion = userMessage.trim();
   if (!trimmedQuestion) {
     return "Напишите вопрос текстом в одном сообщении.";
@@ -32,6 +34,7 @@ export async function answerUserQuestion({ openaiApiKey, userMessage }) {
     const text = await createChatCompletion({
       client,
       systemPrompt: SYSTEM_PROMPT,
+      historyMessages,
       userMessage: trimmedQuestion,
     });
 

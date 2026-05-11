@@ -8,6 +8,11 @@ import { getTariffs } from "./repositories/tariffsRepository.js";
 import { createLead } from "./repositories/leadsRepository.js";
 import { checkSupabaseConnection } from "./supabaseClient.js";
 import { answerUserQuestion } from "./llm/aiAnswerService.js";
+import {
+  appendUserAndAssistant,
+  clearDialogHistory,
+  getDialogHistory,
+} from "./llm/dialogMemory.js";
 
 const bot = new Telegraf(config.telegramBotToken);
 
@@ -71,9 +76,20 @@ bot.start(async (ctx) => {
   clearQuestionMode(userId);
   leadScene.resetState(userId);
   await ctx.reply(
-    "Привет! Я помогу оставить заявку на подключение SaaS-системы.",
+    [
+      "Привет! Я бот SaaS-системы для записи клиентов и управления заявками.",
+      "Здесь вас проконсультирует AI-ассистент Алина, помогу оставить заявку и показать тарифы.",
+      "Команда /reset — очистить историю чата с Алиной и вернуться в меню.",
+    ].join("\n"),
     mainMenuKeyboard(),
   );
+});
+
+bot.command("reset", async (ctx) => {
+  const userId = String(ctx.from.id);
+  clearDialogHistory(userId);
+  clearQuestionMode(userId);
+  await ctx.reply("История диалога очищена. Можете начать заново.", mainMenuKeyboard());
 });
 
 bot.hears(MAIN_MENU_ITEMS.leaveLead, async (ctx) => {
@@ -91,7 +107,10 @@ bot.hears(MAIN_MENU_ITEMS.askQuestion, async (ctx) => {
   const userId = String(ctx.from.id);
   enableQuestionMode(userId);
   await ctx.reply(
-    "Напишите ваш вопрос одним сообщением — ответит AI-консультант. Для других действий используйте кнопки меню ниже.",
+    [
+      "Режим AI-ассистента Алины: задавайте вопросы сообщениями, я помню контекст последних реплик.",
+      "Другие действия — кнопки меню. Историю диалога можно сбросить командой /reset.",
+    ].join("\n"),
     mainMenuKeyboard(),
   );
 });
@@ -112,11 +131,24 @@ bot.on("text", async (ctx) => {
   }
 
   if (questionModeUserIds.has(userId)) {
+    const trimmedForLlm = input.trim();
+    if (!trimmedForLlm) {
+      await ctx.reply("Напишите вопрос текстом — ответит Алина.", mainMenuKeyboard());
+      return;
+    }
+
     await ctx.sendChatAction("typing");
+    const priorHistory = getDialogHistory(userId);
     const replyText = await answerUserQuestion({
       openaiApiKey: config.openaiApiKey,
-      userMessage: input,
+      userMessage: trimmedForLlm,
+      historyMessages: priorHistory,
     });
+
+    if (config.openaiApiKey) {
+      appendUserAndAssistant(userId, trimmedForLlm, replyText);
+    }
+
     await ctx.reply(replyText, mainMenuKeyboard());
     return;
   }

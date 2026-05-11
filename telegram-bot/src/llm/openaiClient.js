@@ -19,21 +19,36 @@ export function createOpenAIClient(apiKey) {
 }
 
 /**
+ * @param {{ role: string; content: string }} m
+ * @returns {boolean}
+ */
+function isChatHistoryMessage(m) {
+  return (
+    m != null &&
+    typeof m.content === "string" &&
+    (m.role === "user" || m.role === "assistant")
+  );
+}
+
+/**
  * @param {object} params
  * @param {OpenAI} params.client
  * @param {string} params.systemPrompt
+ * @param {Array<{ role: string; content: string }>} [params.historyMessages]
  * @param {string} params.userMessage
  * @returns {Promise<string>}
  */
-export async function createChatCompletion({ client, systemPrompt, userMessage }) {
+export async function createChatCompletion({ client, systemPrompt, historyMessages = [], userMessage }) {
+  const history = historyMessages.filter(isChatHistoryMessage).map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
   const response = await client.chat.completions.create({
     model: OPENAI_CHAT_MODEL,
     temperature: OPENAI_CHAT_DEFAULTS.temperature,
     max_tokens: OPENAI_CHAT_DEFAULTS.max_tokens,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
+    messages: [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: userMessage }],
   });
 
   const text = response.choices[0]?.message?.content?.trim();
