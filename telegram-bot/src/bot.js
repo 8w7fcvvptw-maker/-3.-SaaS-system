@@ -76,11 +76,8 @@ bot.start(async (ctx) => {
   clearQuestionMode(userId);
   leadScene.resetState(userId);
   await ctx.reply(
-    [
-      "Привет! Я бот SaaS-системы для записи клиентов и управления заявками.",
-      "Здесь вас проконсультирует AI-ассистент Алина, помогу оставить заявку и показать тарифы.",
-      "Команда /reset — очистить историю чата с Алиной и вернуться в меню.",
-    ].join("\n"),
+    "Привет! Я помогу подобрать тариф SaaS-системы, ответить на вопросы и принять заявку.\n" +
+    "Если хотите обсудить задачу — нажмите «Задать вопрос». Если уже готовы — нажмите «Оставить заявку».",
     mainMenuKeyboard(),
   );
 });
@@ -89,7 +86,7 @@ bot.command("reset", async (ctx) => {
   const userId = String(ctx.from.id);
   clearDialogHistory(userId);
   clearQuestionMode(userId);
-  await ctx.reply("История диалога очищена. Можете начать заново.", mainMenuKeyboard());
+  await ctx.reply("Готово, я очистила историю диалога. Можем начать заново.", mainMenuKeyboard());
 });
 
 bot.hears(MAIN_MENU_ITEMS.leaveLead, async (ctx) => {
@@ -107,10 +104,7 @@ bot.hears(MAIN_MENU_ITEMS.askQuestion, async (ctx) => {
   const userId = String(ctx.from.id);
   enableQuestionMode(userId);
   await ctx.reply(
-    [
-      "Режим AI-ассистента Алины: задавайте вопросы сообщениями, я помню контекст последних реплик.",
-      "Другие действия — кнопки меню. Историю диалога можно сбросить командой /reset.",
-    ].join("\n"),
+    "Я Алина, AI-ассистент SaaS-системы. Расскажите, что хотите автоматизировать или какой тариф выбираете — отвечу простыми словами.",
     mainMenuKeyboard(),
   );
 });
@@ -153,7 +147,10 @@ bot.on("text", async (ctx) => {
     return;
   }
 
-  await ctx.reply("Выберите действие из главного меню.", mainMenuKeyboard());
+  await ctx.reply(
+    "Похоже, вы хотите задать вопрос. Нажмите «Задать вопрос», и Алина ответит вам.",
+    mainMenuKeyboard(),
+  );
 });
 
 bot.catch((error) => {
