@@ -34,21 +34,33 @@ function isChatHistoryMessage(m) {
  * @param {object} params
  * @param {OpenAI} params.client
  * @param {string} params.systemPrompt
+ * @param {string} [params.knowledgeContextPrompt] — фрагменты RAG (второе system-сообщение)
  * @param {Array<{ role: string; content: string }>} [params.historyMessages]
  * @param {string} params.userMessage
  * @returns {Promise<string>}
  */
-export async function createChatCompletion({ client, systemPrompt, historyMessages = [], userMessage }) {
+export async function createChatCompletion({
+  client,
+  systemPrompt,
+  knowledgeContextPrompt = null,
+  historyMessages = [],
+  userMessage,
+}) {
   const history = historyMessages.filter(isChatHistoryMessage).map((m) => ({
     role: m.role,
     content: m.content,
   }));
 
+  const systemMessages = [{ role: "system", content: systemPrompt }];
+  if (knowledgeContextPrompt) {
+    systemMessages.push({ role: "system", content: knowledgeContextPrompt });
+  }
+
   const response = await client.chat.completions.create({
     model: OPENAI_CHAT_MODEL,
     temperature: OPENAI_CHAT_DEFAULTS.temperature,
     max_tokens: OPENAI_CHAT_DEFAULTS.max_tokens,
-    messages: [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: userMessage }],
+    messages: [...systemMessages, ...history, { role: "user", content: userMessage }],
   });
 
   const text = response.choices[0]?.message?.content?.trim();

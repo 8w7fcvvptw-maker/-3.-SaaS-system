@@ -1,5 +1,8 @@
 import { SYSTEM_PROMPT } from "./systemPrompt.js";
+import { searchKnowledgeChunks } from "./knowledgeSearchService.js";
 import { createChatCompletion, createOpenAIClient } from "./openaiClient.js";
+import { buildKnowledgeContextPrompt, NO_KNOWLEDGE_REPLY } from "./ragPrompt.js";
+import { logRagSearch } from "./ragLogger.js";
 
 export const AI_ANSWER_MESSAGES = {
   noApiKey:
@@ -9,9 +12,6 @@ export const AI_ANSWER_MESSAGES = {
 };
 
 /**
- * В LLM передаются system, история диалога (только user/assistant) и новое сообщение пользователя.
- * Ключи и секреты окружения в модель не передаются.
- *
  * @param {object} params
  * @param {string | null | undefined} params.openaiApiKey
  * @param {string} params.userMessage
@@ -31,9 +31,23 @@ export async function answerUserQuestion({ openaiApiKey, userMessage, historyMes
   const client = createOpenAIClient(openaiApiKey);
 
   try {
+    const chunks = await searchKnowledgeChunks({
+      openaiApiKey,
+      query: trimmedQuestion,
+    });
+
+    logRagSearch(trimmedQuestion, chunks);
+
+    if (chunks.length === 0) {
+      return NO_KNOWLEDGE_REPLY;
+    }
+
+    const knowledgeContextPrompt = buildKnowledgeContextPrompt(chunks);
+
     const text = await createChatCompletion({
       client,
       systemPrompt: SYSTEM_PROMPT,
+      knowledgeContextPrompt,
       historyMessages,
       userMessage: trimmedQuestion,
     });
@@ -45,7 +59,7 @@ export async function answerUserQuestion({ openaiApiKey, userMessage, historyMes
     return text;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[llm] OpenAI request failed:", message);
+    console.error("[llm] RAG or OpenAI request failed:", message);
     return AI_ANSWER_MESSAGES.fallback;
   }
 }
