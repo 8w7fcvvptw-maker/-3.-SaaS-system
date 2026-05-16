@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/bot.js",
     "dev": "node --watch src/bot.js",
-    "index:knowledge": "node scripts/indexKnowledge.js"
+    "index:knowledge": "node scripts/indexKnowledge.js",
+    "diagnose:rag": "node scripts/diagnoseRag.js"
   },
   "dependencies": {
     "@langchain/openai": "^1.4.5",

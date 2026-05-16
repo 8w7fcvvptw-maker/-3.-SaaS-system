@@ -1,5 +1,6 @@
 -- RAG: база знаний для Telegram-бота (pgvector)
 -- Выполните в Supabase Dashboard → SQL Editor (один раз перед npm run index:knowledge)
+-- При обновлении функции поиска выполните этот файл снова (create or replace).
 
 create extension if not exists vector;
 
@@ -11,17 +12,18 @@ create table if not exists public.knowledge_chunks (
   created_at timestamptz not null default now()
 );
 
--- Поиск по косинусному сходству (text-embedding-3-small → 1536 измерений)
+-- text-embedding-3-small → 1536 измерений
 create index if not exists knowledge_chunks_embedding_hnsw_idx
   on public.knowledge_chunks
   using hnsw (embedding vector_cosine_ops);
 
--- query_embedding: вектор вопроса; match_count: сколько фрагментов вернуть;
--- match_threshold: минимальное сходство 0..1 (1 = идеальное совпадение)
+-- Возвращает top-N по косинусному сходству.
+-- match_threshold <= 0 — без отсечения в SQL (порог применяется в Node.js).
+-- match_threshold > 0 — отсечение в SQL (legacy).
 create or replace function public.match_knowledge_chunks(
   query_embedding vector(1536),
   match_count int default 5,
-  match_threshold float default 0.7
+  match_threshold float default 0
 )
 returns table (
   id uuid,
@@ -38,7 +40,8 @@ as $$
     kc.metadata,
     1 - (kc.embedding <=> query_embedding) as similarity
   from public.knowledge_chunks kc
-  where 1 - (kc.embedding <=> query_embedding) >= match_threshold
+  where match_threshold <= 0
+     or (1 - (kc.embedding <=> query_embedding)) >= match_threshold
   order by kc.embedding <=> query_embedding
   limit greatest(match_count, 0);
 $$;

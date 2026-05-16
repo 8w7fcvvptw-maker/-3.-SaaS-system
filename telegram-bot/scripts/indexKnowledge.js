@@ -135,7 +135,20 @@ async function main() {
   console.log("[index] Saving to Supabase...");
   await insertChunks(supabase, rows);
 
+  const { count, error: countError } = await supabase
+    .from("knowledge_chunks")
+    .select("id", { count: "exact", head: true });
+
+  if (countError) {
+    throw new Error(`Failed to verify knowledge_chunks count: ${countError.message}`);
+  }
+
   console.log(`[index] Done. Loaded ${rows.length} fragment(s) into knowledge_chunks.`);
+  console.log(`[index] Verified rows in DB: ${count ?? 0}`);
+
+  if (!count) {
+    throw new Error("Indexing finished but knowledge_chunks is still empty — check Supabase project and RLS.");
+  }
 }
 
 main().catch((error) => {
